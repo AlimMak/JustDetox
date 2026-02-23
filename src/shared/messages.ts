@@ -26,4 +26,6 @@ export interface CheckUrlResponse {
   blocked: boolean;
   mode?: "block" | "time-limit";
   remainingSeconds?: number;
+  /** Human-readable block reason shown by the content-script overlay. */
+  message?: string;
 }
