@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Blocked — JustDetox</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        height: 100%;
+        background: #0a0a0a;
+        color: #e5e5e5;
+        font-family: 'Inter', system-ui, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 12px;
+      }
+      h1 { font-size: 2rem; font-weight: 600; }
+      p { color: #666; font-size: 1rem; }
+      button {
+        margin-top: 8px;
+        padding: 8px 18px;
+        background: #fff;
+        color: #0a0a0a;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover { opacity: 0.85; }
+    </style>
+  </head>
+  <body>
+    <h1>Blocked</h1>
+    <p id="msg">This site is blocked by JustDetox.</p>
+    <button onclick="window.history.back()">Go back</button>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const host = params.get("host");
+      if (host) {
+        document.getElementById("msg").textContent =
+          host + " is blocked by JustDetox.";
+      }
+    </script>
+  </body>
+</html>
