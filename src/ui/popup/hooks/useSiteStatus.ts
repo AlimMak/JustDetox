@@ -41,6 +41,13 @@ export function useSiteStatus(hostname: string | null): SiteStatus {
 
     Promise.all([getSettings(), getUsage()])
       .then(([settings, usage]) => {
+        // Master kill-switch: show unrestricted when extension is disabled.
+        if (settings.disabled) {
+          const activeSeconds = usage[hostname]?.activeSeconds ?? 0;
+          setStatus({ loading: false, error: null, mode: "unrestricted", blocked: false, remainingSeconds: null, activeSeconds });
+          return;
+        }
+
         const state = computeBlockedState(hostname, usage, settings);
         const policy = resolveEffectivePolicy(hostname, settings);
         const derived = deriveStatus(hostname, state, policy, usage, settings);

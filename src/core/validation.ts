@@ -115,6 +115,7 @@ export const globalDefaultsSchema = z
 
 export const settingsSchema = z.object({
   version: z.number().int().min(1).default(SETTINGS_VERSION),
+  disabled: z.boolean().default(false),
   siteRules: z.array(siteRuleSchema).default([]),
   groups: z.array(siteGroupSchema).default([]),
   globalBlockList: z.array(domainSchema).default([]),

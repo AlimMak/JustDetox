@@ -43,6 +43,9 @@ export function registerMessages(): void {
 async function handleCheckUrl(hostname: string): Promise<CheckUrlResponse> {
   const [settings, usage] = await Promise.all([getSettings(), getUsage()]);
 
+  // Master kill-switch: extension disabled → never block anything.
+  if (settings.disabled) return { blocked: false };
+
   const state = computeBlockedState(hostname, usage, settings);
 
   return {

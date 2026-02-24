@@ -79,6 +79,11 @@ export interface ResetWindowConfig {
 export interface Settings {
   /** Schema version — used for future migrations. */
   version: number;
+  /**
+   * Master kill-switch. When true, no sites are blocked and the extension
+   * behaves as if no rules exist. Only configurable from the Settings panel.
+   */
+  disabled: boolean;
   siteRules: SiteRule[];
   groups: SiteGroup[];
   /**
@@ -132,6 +137,7 @@ export const DEFAULT_RESET_WINDOW: ResetWindowConfig = {
 
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
+  disabled: false,
   siteRules: [],
   groups: [],
   globalBlockList: [],
