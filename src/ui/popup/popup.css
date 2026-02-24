@@ -1,0 +1,130 @@
+/* ─── Status card ───────────────────────────────────────────────────────────── */
+
+.popup-status-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #111;
+  border: 1px solid #1f1f1f;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.popup-domain {
+  font-size: 12px;
+  color: #ccc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+/* ─── Mode badges ───────────────────────────────────────────────────────────── */
+
+.popup-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 4px;
+  padding: 3px 7px;
+  white-space: nowrap;
+}
+
+.popup-badge--blocked {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.popup-badge--limited {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.popup-badge--unrestricted {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.15);
+}
+
+/* ─── Time section ──────────────────────────────────────────────────────────── */
+
+.popup-time-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.popup-time-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #0f0f0f;
+  border: 1px solid #1a1a1a;
+  border-radius: 6px;
+}
+
+.popup-time-label {
+  font-size: 11px;
+  color: #666;
+}
+
+.popup-time-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ccc;
+  font-variant-numeric: tabular-nums;
+}
+
+.popup-time-value--zero {
+  color: #ef4444;
+}
+
+.popup-time-blocked {
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+  padding: 12px 0;
+}
+
+/* ─── Navigation buttons ────────────────────────────────────────────────────── */
+
+.popup-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.popup-nav-btn {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+}
+
+/* ─── Loading / empty states ────────────────────────────────────────────────── */
+
+.popup-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  color: #444;
+  font-size: 12px;
+}
+
+.popup-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 80px;
+  color: #444;
+  font-size: 12px;
+  text-align: center;
+}

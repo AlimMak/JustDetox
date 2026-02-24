@@ -1,48 +1,56 @@
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { readStorage } from "../../shared/storage";
-import type { BlockedSite } from "../../shared/types";
 import "../shared.css";
+import "./popup.css";
+import { useActiveTab } from "./hooks/useActiveTab";
+import { useSiteStatus } from "./hooks/useSiteStatus";
+import { StatusCard } from "./components/StatusCard";
+import { TimeDisplay } from "./components/TimeDisplay";
+import { NavButtons } from "./components/NavButtons";
 
 function Popup() {
-  const [blockedSites, setBlockedSites] = useState<BlockedSite[]>([]);
+  const { hostname, loading: tabLoading, error: tabError } = useActiveTab();
+  const status = useSiteStatus(tabLoading ? null : hostname);
 
-  useEffect(() => {
-    readStorage().then((s) => setBlockedSites(s.blockedSites));
-  }, []);
-
-  const openOptions = () => {
-    chrome.runtime.openOptionsPage();
-  };
+  const loading = tabLoading || status.loading;
 
   return (
     <div className="popup-root">
       <header className="popup-header">
         <span className="popup-logo">JustDetox</span>
-        <button className="btn-ghost" onClick={openOptions} title="Settings">
-          ⚙
-        </button>
       </header>
 
       <main className="popup-body">
-        {blockedSites.length === 0 ? (
-          <p className="muted">No sites configured yet.</p>
-        ) : (
-          <ul className="site-list">
-            {blockedSites.map((site) => (
-              <li key={site.hostname} className="site-row">
-                <span className="site-name">{site.hostname}</span>
-                <span className="site-badge">{site.mode === "block" ? "Blocked" : "Timed"}</span>
-              </li>
-            ))}
-          </ul>
+        {loading && (
+          <div className="popup-loading">Loading…</div>
+        )}
+
+        {!loading && (tabError || status.error) && (
+          <div className="popup-empty">
+            <span>Could not load status</span>
+          </div>
+        )}
+
+        {!loading && !tabError && !status.error && hostname === null && (
+          <div className="popup-empty">
+            <span>No active site</span>
+          </div>
+        )}
+
+        {!loading && !tabError && !status.error && hostname !== null && (
+          <>
+            <StatusCard hostname={hostname} mode={status.mode} loading={false} />
+            <TimeDisplay
+              mode={status.mode}
+              activeSeconds={status.activeSeconds}
+              remainingSeconds={status.remainingSeconds}
+            />
+          </>
         )}
       </main>
 
       <footer className="popup-footer">
-        <button className="btn-primary" onClick={openOptions}>
-          Manage sites
-        </button>
+        <NavButtons />
       </footer>
     </div>
   );
