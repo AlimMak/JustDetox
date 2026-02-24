@@ -7,7 +7,10 @@ export default defineConfig({
     react(),
     webExtension({
       manifest: "public/manifest.json",
-      additionalInputs: ["src/content/overlay.ts"],
+      additionalInputs: [
+        "src/content/overlay.ts",
+        "src/ui/onboarding/onboarding.html",
+      ],
     }),
   ],
   build: {

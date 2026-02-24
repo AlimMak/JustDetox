@@ -11,3 +11,13 @@ import { registerMessages } from "./messages";
 
 initTracker();
 registerMessages();
+
+// ─── First-run onboarding ─────────────────────────────────────────────────────
+
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  if (reason === chrome.runtime.OnInstalledReason.INSTALL) {
+    void chrome.tabs.create({
+      url: chrome.runtime.getURL("src/ui/onboarding/onboarding.html"),
+    });
+  }
+});

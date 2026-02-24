@@ -1,0 +1,91 @@
+/* ─── Onboarding layout ──────────────────────────────────────────────────────── */
+
+html, body {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.onboarding-root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: #0a0a0a;
+}
+
+.onboarding-card {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.onboarding-logo {
+  font-size: 12px;
+  font-weight: 700;
+  color: #444;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+.onboarding-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+  margin-bottom: 12px;
+}
+
+.onboarding-body {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 36px;
+}
+
+/* ─── Sections ───────────────────────────────────────────────────────────────── */
+
+.onboarding-section {
+  margin-bottom: 28px;
+}
+
+.onboarding-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 10px;
+}
+
+.onboarding-hint {
+  font-size: 11px;
+  color: #555;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+/* ─── Start button ───────────────────────────────────────────────────────────── */
+
+.onboarding-cta {
+  padding: 11px 24px;
+  background: #fff;
+  color: #0a0a0a;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.onboarding-cta:hover { opacity: 0.88; }
+.onboarding-cta:disabled { opacity: 0.5; cursor: not-allowed; }
