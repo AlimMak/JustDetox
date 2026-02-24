@@ -3,7 +3,8 @@ import { createRoot } from "react-dom/client";
 import "../shared.css";
 import "./options.css";
 import { useSettings } from "./hooks/useSettings";
-import { Sidebar, type Section } from "./components/Sidebar";
+import { Sidebar, resolveInitialSection, type Section } from "./components/Sidebar";
+import { DashboardPanel } from "./components/DashboardPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { GroupsPanel } from "./components/GroupsPanel";
 import { SitesPanel } from "./components/SitesPanel";
@@ -11,7 +12,8 @@ import { ImportExportPanel } from "./components/ImportExportPanel";
 import { AboutPanel } from "./components/AboutPanel";
 
 function Options() {
-  const [section, setSection] = useState<Section>("settings");
+  // Initialise from location.hash so popup deep-links work (#dashboard, #settings, …)
+  const [section, setSection] = useState<Section>(resolveInitialSection);
   const { settings, loading, patch } = useSettings();
 
   if (loading) {
@@ -27,6 +29,9 @@ function Options() {
       />
 
       <main className="options-panel">
+        {section === "dashboard" && (
+          <DashboardPanel settings={settings} />
+        )}
         {section === "settings" && (
           <SettingsPanel settings={settings} patch={patch} />
         )}

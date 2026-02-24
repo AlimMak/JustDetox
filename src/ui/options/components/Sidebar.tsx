@@ -1,6 +1,22 @@
-export type Section = "settings" | "groups" | "sites" | "import-export" | "about";
+export type Section =
+  | "dashboard"
+  | "settings"
+  | "groups"
+  | "sites"
+  | "import-export"
+  | "about";
+
+const VALID_SECTIONS: Section[] = [
+  "dashboard",
+  "settings",
+  "groups",
+  "sites",
+  "import-export",
+  "about",
+];
 
 const NAV_ITEMS: { id: Section; label: string; icon: string }[] = [
+  { id: "dashboard", label: "Dashboard", icon: "◎" },
   { id: "settings", label: "Settings", icon: "⚙" },
   { id: "groups", label: "Groups", icon: "⊞" },
   { id: "sites", label: "Sites", icon: "⊕" },
@@ -19,7 +35,9 @@ export function Sidebar({ active, onSelect, extensionDisabled }: SidebarProps) {
     <nav className="options-sidebar">
       <div className="sidebar-header">
         <span className="sidebar-logo">JustDetox</span>
-        <span className={`sidebar-status ${extensionDisabled ? "sidebar-status--off" : "sidebar-status--on"}`}>
+        <span
+          className={`sidebar-status ${extensionDisabled ? "sidebar-status--off" : "sidebar-status--on"}`}
+        >
           {extensionDisabled ? "Disabled" : "Active"}
         </span>
       </div>
@@ -31,7 +49,9 @@ export function Sidebar({ active, onSelect, extensionDisabled }: SidebarProps) {
               className={`sidebar-nav-item${active === id ? " active" : ""}`}
               onClick={() => onSelect(id)}
             >
-              <span className="nav-icon" aria-hidden="true">{icon}</span>
+              <span className="nav-icon" aria-hidden="true">
+                {icon}
+              </span>
               {label}
             </button>
           </li>
@@ -39,4 +59,10 @@ export function Sidebar({ active, onSelect, extensionDisabled }: SidebarProps) {
       </ul>
     </nav>
   );
+}
+
+/** Resolve the initial section from location.hash, defaulting to "dashboard". */
+export function resolveInitialSection(): Section {
+  const hash = location.hash.slice(1) as Section;
+  return VALID_SECTIONS.includes(hash) ? hash : "dashboard";
 }
