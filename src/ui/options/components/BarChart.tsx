@@ -1,6 +1,8 @@
+// FILE: src/ui/options/components/BarChart.tsx
+
 import { formatTime } from "../../popup/utils/formatTime";
 
-export interface BarItem {
+export interface BarChartItem {
   label: string;
   /** Active seconds — used to compute bar width and display value. */
   value: number;
@@ -8,9 +10,12 @@ export interface BarItem {
   sublabel?: string;
 }
 
+// Legacy alias kept for backward compatibility with existing imports.
+export type BarItem = BarChartItem;
+
 interface BarChartProps {
-  items: BarItem[];
-  emptyMessage?: string;
+  items: BarChartItem[];
+  emptyMessage: string;
 }
 
 /**
@@ -19,40 +24,37 @@ interface BarChartProps {
  * The widest bar is always 100%; all others are scaled proportionally.
  * Values are shown as formatted time strings on the right.
  */
-export function BarChart({ items, emptyMessage = "No data yet." }: BarChartProps) {
+export function BarChart({ items, emptyMessage }: BarChartProps) {
   if (items.length === 0) {
-    return <p className="muted dash-empty">{emptyMessage}</p>;
+    return (
+      <p style={{ fontSize: "var(--text-sm)", color: "var(--text-3)" }}>
+        {emptyMessage}
+      </p>
+    );
   }
 
-  const maxValue = Math.max(...items.map((i) => i.value), 1);
+  const top5 = items.slice(0, 5);
+  const max = Math.max(...top5.map((i) => i.value), 1);
 
   return (
-    <ul className="bar-chart" role="list">
-      {items.map((item, idx) => {
-        const pct = Math.max((item.value / maxValue) * 100, 1);
-
-        return (
-          <li key={item.label} className="bar-row">
-            <div className="bar-label-group">
-              <span className="bar-label" title={item.label}>
-                {item.label}
-              </span>
-              {item.sublabel && (
-                <span className="bar-sublabel">{item.sublabel}</span>
-              )}
-            </div>
-
-            <div className="bar-track" aria-hidden="true">
-              <div
-                className={`bar-fill${idx === 0 ? " bar-fill--top" : ""}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-
-            <span className="bar-value">{formatTime(item.value)}</span>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="bar-list">
+      {top5.map((item, idx) => (
+        <div key={item.label} className="bar-item">
+          <div>
+            <div className="bar-item__label truncate">{item.label}</div>
+            {item.sublabel && (
+              <div className="bar-item__sublabel">{item.sublabel}</div>
+            )}
+          </div>
+          <div className="bar-track">
+            <div
+              className={`bar-fill${idx === 0 ? " bar-fill--top" : ""}`}
+              style={{ width: `${Math.max(2, (item.value / max) * 100)}%` }}
+            />
+          </div>
+          <div className="bar-item__value">{formatTime(item.value)}</div>
+        </div>
+      ))}
+    </div>
   );
 }

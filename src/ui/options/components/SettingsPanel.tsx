@@ -1,3 +1,5 @@
+// FILE: src/ui/options/components/SettingsPanel.tsx
+
 import { useState } from "react";
 import type { Settings } from "../../../core/types";
 import { DomainPillInput } from "./DomainPillInput";
@@ -7,28 +9,6 @@ const RESET_PRESETS = [6, 12, 24, 48] as const;
 interface SettingsPanelProps {
   settings: Settings;
   patch: (update: Partial<Settings>) => void;
-}
-
-function Toggle({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      className={`toggle-track${checked ? " on" : ""}`}
-      onClick={() => onChange(!checked)}
-    >
-      <span className="toggle-thumb" />
-    </button>
-  );
 }
 
 export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
@@ -46,84 +26,69 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
 
   return (
     <div className="panel-content">
-      <h1 className="panel-title">Settings</h1>
-      <p className="panel-subtitle">Global preferences for JustDetox.</p>
-
-      {/* Master toggle */}
-      <section className="panel-section">
-        <p className="panel-section-title">Extension</p>
-        <div className={`master-toggle-card${settings.disabled ? " disabled-state" : ""}`}>
-          <div>
-            <p className="master-toggle-label">
-              {settings.disabled ? "Extension disabled" : "Extension enabled"}
-            </p>
-            <p className="muted" style={{ marginTop: 2 }}>
-              {settings.disabled
-                ? "No sites are being blocked or tracked."
-                : "Sites are blocked and time is tracked per your rules."}
-            </p>
-          </div>
-          <Toggle
-            checked={!settings.disabled}
-            onChange={(enabled) => patch({ disabled: !enabled })}
-            label="Enable extension"
-          />
+      <div className="panel-header">
+        <div>
+          <h1 className="panel-title">Settings</h1>
+          <p className="panel-subtitle">Global preferences.</p>
         </div>
-      </section>
+      </div>
 
       {/* Reset window */}
       <section className="panel-section">
-        <p className="panel-section-title">Usage reset window</p>
-        <p className="muted" style={{ marginBottom: 10 }}>
-          Time counters reset after this interval. Current:{" "}
-          <strong style={{ color: "#ccc" }}>{intervalHours}h</strong>
-        </p>
-        <div className="preset-group">
+        <p className="section-heading">Reset window</p>
+
+        <div className="seg" style={{ marginBottom: "var(--sp-3)" }}>
           {RESET_PRESETS.map((h) => (
             <button
               key={h}
-              className={`preset-btn${intervalHours === h ? " active" : ""}`}
+              className={`seg__option${intervalHours === h ? " seg__option--active" : ""}`}
               onClick={() => patch({ resetWindow: { intervalHours: h } })}
             >
               {h}h
             </button>
           ))}
           <button
-            className={`preset-btn${isCustom ? " active" : ""}`}
+            className={`seg__option${isCustom ? " seg__option--active" : ""}`}
             onClick={() => setCustomHours(String(intervalHours))}
           >
             Custom
           </button>
         </div>
+
         {(isCustom || customHours !== "") && (
-          <div className="form-row" style={{ marginTop: 10, maxWidth: 160 }}>
-            <label className="form-label">
-              Custom hours (1–168)
-              <input
-                type="number"
-                min={1}
-                max={168}
-                value={customHours !== "" ? customHours : intervalHours}
-                onChange={(e) => setCustomHours(e.target.value)}
-                onBlur={applyCustomHours}
-                onKeyDown={(e) => e.key === "Enter" && applyCustomHours()}
-              />
-            </label>
+          <div className="field" style={{ marginBottom: "var(--sp-3)", maxWidth: 160 }}>
+            <span className="field__label">Custom hours (1–168)</span>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={168}
+              value={customHours !== "" ? customHours : intervalHours}
+              onChange={(e) => setCustomHours(e.target.value)}
+              onBlur={applyCustomHours}
+              onKeyDown={(e) => e.key === "Enter" && applyCustomHours()}
+            />
           </div>
         )}
+
+        <p className="reset-window-hint">
+          Usage counters reset every {intervalHours}h. Changing this does not erase existing data.
+        </p>
       </section>
 
-      {/* Always-blocked quick list */}
+      {/* Always blocked */}
       <section className="panel-section">
-        <p className="panel-section-title">Always blocked</p>
-        <p className="muted" style={{ marginBottom: 10 }}>
-          Domains blocked globally, regardless of any group or site rule.
-        </p>
-        <DomainPillInput
-          domains={settings.globalBlockList}
-          onChange={(list) => patch({ globalBlockList: list })}
-          placeholder="reddit.com, tiktok.com…"
-        />
+        <p className="section-heading">Always blocked</p>
+        <div className="field">
+          <DomainPillInput
+            domains={settings.globalBlockList}
+            onChange={(list) => patch({ globalBlockList: list })}
+            placeholder="reddit.com, tiktok.com…"
+          />
+          <p className="field__hint">
+            Blocked globally regardless of any group or site rule.
+          </p>
+        </div>
       </section>
     </div>
   );

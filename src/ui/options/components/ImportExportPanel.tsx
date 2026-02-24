@@ -1,3 +1,5 @@
+// FILE: src/ui/options/components/ImportExportPanel.tsx
+
 import { useRef, useState } from "react";
 import type { Settings } from "../../../core/types";
 import { exportAll, getSettings, importAll } from "../../../core/storage";
@@ -102,61 +104,64 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
 
   return (
     <div className="panel-content">
-      <h1 className="panel-title">Import / Export</h1>
-      <p className="panel-subtitle">
-        Back up your rules and usage, or restore from a previous backup.
-      </p>
+      <div className="panel-header">
+        <div>
+          <h1 className="panel-title">Import / Export</h1>
+          <p className="panel-subtitle">
+            Back up your rules and usage, or restore from a previous backup.
+          </p>
+        </div>
+      </div>
 
-      {/* ── Export ── */}
+      {/* Export */}
       <section className="panel-section">
-        <p className="panel-section-title">Export</p>
+        <p className="section-heading">Export</p>
 
-        <div className="preset-group" style={{ marginBottom: 12 }}>
+        <div className="seg" style={{ marginBottom: "var(--sp-3)" }}>
           <button
-            className={`preset-btn${exportMode === "settings" ? " active" : ""}`}
+            className={`seg__option${exportMode === "settings" ? " seg__option--active" : ""}`}
             onClick={() => setExportMode("settings")}
           >
             Settings only
           </button>
           <button
-            className={`preset-btn${exportMode === "full" ? " active" : ""}`}
+            className={`seg__option${exportMode === "full" ? " seg__option--active" : ""}`}
             onClick={() => setExportMode("full")}
           >
             Full backup
           </button>
         </div>
 
-        <p className="muted" style={{ marginBottom: 12 }}>
+        <p style={{ fontSize: "var(--text-sm)", color: "var(--text-3)", marginBottom: "var(--sp-4)" }}>
           {exportMode === "settings"
             ? "Downloads your rules and configuration. Safe to share or migrate between devices."
             : "Downloads settings plus all tracked usage data. Useful for full device backups."}
         </p>
 
         <button
-          className="btn-primary"
-          style={{ width: "auto", padding: "7px 16px" }}
+          className="btn btn-primary"
           onClick={() => void handleExport()}
           disabled={exporting}
         >
-          {exporting ? "Exporting…" : "↓ Download"}
+          {exporting ? "Exporting…" : "Download"}
         </button>
       </section>
 
-      {/* ── Import ── */}
+      {/* Import */}
       <section className="panel-section">
-        <p className="panel-section-title">Import</p>
+        <p className="section-heading">Import</p>
 
         {!preview && (
           <>
-            <p className="muted" style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: "var(--text-sm)", color: "var(--text-3)", marginBottom: "var(--sp-4)" }}>
               Restore settings from a previously exported file.{" "}
-              <strong style={{ color: "#aaa" }}>
+              <strong style={{ color: "var(--text-2)" }}>
                 This overwrites your current data.
               </strong>
             </p>
             <label className="import-dropzone">
               <span>Click to choose a backup file</span>
-              <span className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              <span style={{ fontSize: "var(--text-xs)", color: "var(--text-3)", marginTop: "var(--sp-1)" }}>
                 .json files only
               </span>
               <input
@@ -172,22 +177,22 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
 
         {importError && (
           <p
-            className="form-error"
-            style={{ marginTop: 10, whiteSpace: "pre-wrap" }}
+            className="field__error"
+            style={{ marginTop: "var(--sp-3)", whiteSpace: "pre-wrap" }}
           >
             {importError}
           </p>
         )}
 
         {importDone && (
-          <p className="import-success" style={{ marginTop: 10 }}>
+          <p className="import-success" style={{ marginTop: "var(--sp-3)" }}>
             Backup restored successfully.
           </p>
         )}
 
         {/* Preview / confirm card */}
         {preview && (
-          <div className="about-card">
+          <div className="card card--raised">
             {preview.data.exportedAt && (
               <div className="about-row">
                 <span className="about-label">Exported on</span>
@@ -196,50 +201,44 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
                 </span>
               </div>
             )}
-
             <div className="about-row">
               <span className="about-label">Groups</span>
               <span className="about-value">
                 {preview.data.settings.groups.length}
               </span>
             </div>
-
             <div className="about-row">
               <span className="about-label">Site rules</span>
               <span className="about-value">
                 {preview.data.settings.siteRules.length}
               </span>
             </div>
-
             <div className="about-row">
               <span className="about-label">Always-blocked</span>
               <span className="about-value">
                 {preview.data.settings.globalBlockList.length}
               </span>
             </div>
-
             {usageCount > 0 && (
               <div className="about-row">
                 <span className="about-label">Usage entries</span>
                 <span className="about-value">{usageCount}</span>
               </div>
             )}
-
-            <div className="about-row" style={{ gap: 12 }}>
-              <span className="muted" style={{ fontSize: 11 }}>
+            <div className="about-row" style={{ gap: "var(--sp-3)" }}>
+              <span style={{ fontSize: "var(--text-xs)", color: "var(--text-3)" }}>
                 This will overwrite all current data.
               </span>
-              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <div style={{ display: "flex", gap: "var(--sp-2)", flexShrink: 0 }}>
                 <button
-                  className="btn-secondary btn-sm"
+                  className="btn btn-secondary btn--sm"
                   onClick={() => setPreview(null)}
                   disabled={applying}
                 >
                   Cancel
                 </button>
                 <button
-                  className="btn-primary btn-sm"
-                  style={{ width: "auto" }}
+                  className="btn btn-primary btn--sm"
                   onClick={() => void handleApply()}
                   disabled={applying}
                 >

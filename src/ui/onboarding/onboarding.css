@@ -1,91 +1,171 @@
 /* ─── Onboarding layout ──────────────────────────────────────────────────────── */
 
 html, body {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow-y: auto;
 }
 
-.onboarding-root {
-  width: 100%;
+.ob-root {
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 40px 20px;
-  background: #0a0a0a;
+  padding: var(--sp-12) var(--sp-6);
+  background: var(--bg);
 }
 
-.onboarding-card {
+.ob-card {
   width: 100%;
-  max-width: 520px;
+  max-width: 480px;
   display: flex;
   flex-direction: column;
   gap: 0;
 }
 
-.onboarding-logo {
-  font-size: 12px;
-  font-weight: 700;
-  color: #444;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 24px;
-}
+/* ─── Brand ──────────────────────────────────────────────────────────────────── */
 
-.onboarding-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #fff;
-  line-height: 1.2;
-  margin-bottom: 12px;
-}
-
-.onboarding-body {
-  font-size: 14px;
-  color: #666;
-  line-height: 1.6;
-  margin-bottom: 36px;
-}
-
-/* ─── Sections ───────────────────────────────────────────────────────────────── */
-
-.onboarding-section {
-  margin-bottom: 28px;
-}
-
-.onboarding-section-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: #444;
-  text-transform: uppercase;
+.ob-brand {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
   letter-spacing: 0.1em;
-  margin-bottom: 10px;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: var(--sp-6);
 }
 
-.onboarding-hint {
-  font-size: 11px;
-  color: #555;
-  margin-top: 8px;
-  line-height: 1.5;
+/* ─── Step indicator ─────────────────────────────────────────────────────────── */
+
+.ob-steps {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-6);
 }
 
-/* ─── Start button ───────────────────────────────────────────────────────────── */
+.ob-step-dot {
+  width: 20px;
+  height: 3px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  transition: background var(--dur-base) var(--ease-out);
+}
 
-.onboarding-cta {
-  padding: 11px 24px;
-  background: #fff;
-  color: #0a0a0a;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
+.ob-step-dot--active { background: var(--text-2); }
+.ob-step-dot--done   { background: var(--surface-4); }
+
+/* ─── Typography ─────────────────────────────────────────────────────────────── */
+
+.ob-title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+  margin-bottom: var(--sp-2);
+}
+
+.ob-sub {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  line-height: var(--lh-base);
+  margin-bottom: var(--sp-6);
+}
+
+/* ─── Template cards ─────────────────────────────────────────────────────────── */
+
+.ob-templates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-6);
+}
+
+.ob-template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  padding: var(--sp-4);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
   cursor: pointer;
-  transition: opacity 0.15s;
-  width: 100%;
-  margin-top: 8px;
+  text-align: left;
+  transition:
+    border-color var(--dur-base) var(--ease-out),
+    background var(--dur-base) var(--ease-out);
+  font-family: var(--font);
 }
 
-.onboarding-cta:hover { opacity: 0.88; }
-.onboarding-cta:disabled { opacity: 0.5; cursor: not-allowed; }
+.ob-template-card:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.ob-template-card--selected {
+  border-color: var(--border-focus);
+  background: var(--surface-2);
+}
+
+.ob-template-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semi);
+  color: var(--text-1);
+}
+
+.ob-template-domains {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+
+/* ─── Field ──────────────────────────────────────────────────────────────────── */
+
+.ob-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-6);
+}
+
+.ob-field-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+}
+
+/* ─── Summary ────────────────────────────────────────────────────────────────── */
+
+.ob-summary {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin-bottom: var(--sp-2);
+}
+
+.ob-summary-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.ob-summary-item:last-child { border-bottom: none; }
+
+.ob-summary-key {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+.ob-summary-val {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+}
+
+/* ─── Action row ─────────────────────────────────────────────────────────────── */
+
+.ob-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}

@@ -1,6 +1,9 @@
+// FILE: src/ui/options/options.tsx
+
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
-import "../shared.css";
+import "../styles/base.css";
+import "../components/components.css";
 import "./options.css";
 import { useSettings } from "./hooks/useSettings";
 import { Sidebar, resolveInitialSection, type Section } from "./components/Sidebar";
@@ -12,7 +15,7 @@ import { ImportExportPanel } from "./components/ImportExportPanel";
 import { AboutPanel } from "./components/AboutPanel";
 
 function Options() {
-  // Initialise from location.hash so popup deep-links work (#dashboard, #settings, …)
+  // Initialise from location.hash so popup deep-links work (#rules, #settings, …)
   const [section, setSection] = useState<Section>(resolveInitialSection);
   const { settings, loading, patch } = useSettings();
 
@@ -29,8 +32,8 @@ function Options() {
       />
 
       <main className="options-panel">
-        {section === "dashboard" && (
-          <DashboardPanel settings={settings} />
+        {section === "rules" && (
+          <DashboardPanel settings={settings} patch={patch} />
         )}
         {section === "settings" && (
           <SettingsPanel settings={settings} patch={patch} />
@@ -40,6 +43,9 @@ function Options() {
         )}
         {section === "sites" && (
           <SitesPanel settings={settings} patch={patch} />
+        )}
+        {section === "reset-window" && (
+          <SettingsPanel settings={settings} patch={patch} />
         )}
         {section === "import-export" && (
           <ImportExportPanel settings={settings} patch={patch} />

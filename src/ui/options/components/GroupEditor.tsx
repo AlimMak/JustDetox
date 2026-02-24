@@ -1,3 +1,5 @@
+// FILE: src/ui/options/components/GroupEditor.tsx
+
 import { useState } from "react";
 import type { SiteGroup, RuleMode } from "../../../core/types";
 import { Modal } from "./Modal";
@@ -61,73 +63,97 @@ export function GroupEditor({ group, onSave, onClose }: GroupEditorProps) {
       onClose={onClose}
       footer={
         <>
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave}>
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave}>
             {isNew ? "Create" : "Save"}
           </button>
         </>
       }
     >
       {/* Name */}
-      <div className="form-row">
-        <label className="form-label">
-          Group name
-          <input
-            type="text"
-            value={name}
-            placeholder="Social Media"
-            onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: undefined })); }}
-          />
-        </label>
-        {errors.name && <p className="form-error">{errors.name}</p>}
+      <div className="field">
+        <span className="field__label">Group name</span>
+        <input
+          className="input"
+          type="text"
+          value={name}
+          placeholder="Social Media"
+          onChange={(e) => {
+            setName(e.target.value);
+            setErrors((p) => ({ ...p, name: undefined }));
+          }}
+        />
+        {errors.name && <p className="field__error">{errors.name}</p>}
       </div>
 
-      {/* Mode */}
-      <div className="form-row form-row--split">
-        <label className="form-label">
-          Mode
-          <select value={mode} onChange={(e) => setMode(e.target.value as RuleMode)}>
-            <option value="block">Block entirely</option>
-            <option value="limit">Time limit</option>
-          </select>
-        </label>
-        {mode === "limit" && (
-          <label className="form-label">
-            Shared limit (min)
-            <input
-              type="number"
-              min={1}
-              max={1440}
-              value={limitMinutes}
-              onChange={(e) => { setLimitMinutes(e.target.value); setErrors((p) => ({ ...p, limitMinutes: undefined })); }}
-            />
-          </label>
-        )}
+      {/* Mode + limit row */}
+      <div className="field">
+        <span className="field__label">Mode</span>
+        <div className="seg">
+          <button
+            className={`seg__option${mode === "block" ? " seg__option--active" : ""}`}
+            onClick={() => setMode("block")}
+          >
+            Block
+          </button>
+          <button
+            className={`seg__option${mode === "limit" ? " seg__option--active" : ""}`}
+            onClick={() => setMode("limit")}
+          >
+            Time limit
+          </button>
+        </div>
       </div>
-      {errors.limitMinutes && <p className="form-error">{errors.limitMinutes}</p>}
+
+      {mode === "limit" && (
+        <div className="field">
+          <span className="field__label">Shared limit (min/window)</span>
+          <input
+            className="input"
+            type="number"
+            min={1}
+            max={1440}
+            value={limitMinutes}
+            onChange={(e) => {
+              setLimitMinutes(e.target.value);
+              setErrors((p) => ({ ...p, limitMinutes: undefined }));
+            }}
+          />
+          {errors.limitMinutes && (
+            <p className="field__error">{errors.limitMinutes}</p>
+          )}
+        </div>
+      )}
 
       {/* Domains */}
-      <div className="form-row">
-        <label className="form-label" style={{ marginBottom: 4 }}>
-          Domains
-        </label>
+      <div className="field">
+        <span className="field__label">Domains</span>
         <DomainPillInput
           domains={domains}
-          onChange={(d) => { setDomains(d); setErrors((p) => ({ ...p, domains: undefined })); }}
+          onChange={(d) => {
+            setDomains(d);
+            setErrors((p) => ({ ...p, domains: undefined }));
+          }}
         />
-        {errors.domains && <p className="form-error">{errors.domains}</p>}
+        {errors.domains && <p className="field__error">{errors.domains}</p>}
       </div>
 
-      {/* Enabled */}
-      <label className="toggle-row">
-        <span className="form-label" style={{ marginBottom: 0 }}>Rule enabled</span>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-          style={{ accentColor: "#fff" }}
-        />
-      </label>
+      {/* Enabled toggle */}
+      <div
+        className="field"
+        style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+      >
+        <span className="field__label" style={{ marginBottom: 0 }}>Rule active</span>
+        <label className="toggle">
+          <input
+            className="toggle__input"
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+          />
+          <span className="toggle__track"><span className="toggle__thumb" /></span>
+        </label>
+      </div>
     </Modal>
   );
 }

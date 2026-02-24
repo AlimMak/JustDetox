@@ -1,3 +1,5 @@
+// FILE: src/ui/options/components/DomainPillInput.tsx
+
 import { useState } from "react";
 import { sanitizeDomain, isValidDomain } from "../../../core/validation";
 
@@ -90,14 +92,14 @@ export function DomainPillInput({
   };
 
   return (
-    <div className="pill-input-wrapper">
-      <div className="pill-input-box">
+    <div>
+      <div className="pill-box">
         {domains.map((d) => (
           <span key={d} className="pill">
-            <span className="pill-label">{d}</span>
+            <span className="pill__label">{d}</span>
             <button
               type="button"
-              className="pill-remove"
+              className="pill__remove"
               onClick={() => remove(d)}
               aria-label={`Remove ${d}`}
             >
@@ -107,7 +109,7 @@ export function DomainPillInput({
         ))}
         <input
           type="text"
-          className="pill-text-input"
+          className="pill-input"
           value={inputValue}
           placeholder={domains.length === 0 ? placeholder : "add more…"}
           onChange={(e) => {
@@ -118,7 +120,11 @@ export function DomainPillInput({
           onPaste={handlePaste}
         />
       </div>
-      {error && <p className="form-error" style={{ marginTop: 4 }}>{error}</p>}
+      {error && (
+        <p className="field__error" style={{ marginTop: "var(--sp-1)" }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }

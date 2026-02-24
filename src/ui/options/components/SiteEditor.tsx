@@ -1,3 +1,5 @@
+// FILE: src/ui/options/components/SiteEditor.tsx
+
 import { useState } from "react";
 import type { SiteRule, RuleMode } from "../../../core/types";
 import { sanitizeDomain, isValidDomain } from "../../../core/validation";
@@ -58,62 +60,85 @@ export function SiteEditor({ rule, onSave, onClose }: SiteEditorProps) {
       onClose={onClose}
       footer={
         <>
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave}>
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave}>
             {isNew ? "Add rule" : "Save"}
           </button>
         </>
       }
     >
       {/* Domain */}
-      <div className="form-row">
-        <label className="form-label">
-          Domain
-          <input
-            type="text"
-            value={domain}
-            placeholder="twitter.com"
-            disabled={!isNew}
-            onChange={(e) => { setDomain(e.target.value); setErrors((p) => ({ ...p, domain: undefined })); }}
-          />
-        </label>
-        {errors.domain && <p className="form-error">{errors.domain}</p>}
+      <div className="field">
+        <span className="field__label">Domain</span>
+        <input
+          className="input"
+          type="text"
+          value={domain}
+          placeholder="twitter.com"
+          disabled={!isNew}
+          onChange={(e) => {
+            setDomain(e.target.value);
+            setErrors((p) => ({ ...p, domain: undefined }));
+          }}
+        />
+        {errors.domain && <p className="field__error">{errors.domain}</p>}
       </div>
 
       {/* Mode */}
-      <div className="form-row form-row--split">
-        <label className="form-label">
-          Mode
-          <select value={mode} onChange={(e) => setMode(e.target.value as RuleMode)}>
-            <option value="block">Block entirely</option>
-            <option value="limit">Time limit</option>
-          </select>
-        </label>
-        {mode === "limit" && (
-          <label className="form-label">
-            Limit (min / window)
-            <input
-              type="number"
-              min={1}
-              max={1440}
-              value={limitMinutes}
-              onChange={(e) => { setLimitMinutes(e.target.value); setErrors((p) => ({ ...p, limitMinutes: undefined })); }}
-            />
-          </label>
-        )}
+      <div className="field">
+        <span className="field__label">Mode</span>
+        <div className="seg">
+          <button
+            className={`seg__option${mode === "block" ? " seg__option--active" : ""}`}
+            onClick={() => setMode("block")}
+          >
+            Block
+          </button>
+          <button
+            className={`seg__option${mode === "limit" ? " seg__option--active" : ""}`}
+            onClick={() => setMode("limit")}
+          >
+            Time limit
+          </button>
+        </div>
       </div>
-      {errors.limitMinutes && <p className="form-error">{errors.limitMinutes}</p>}
 
-      {/* Enabled */}
-      <label className="toggle-row">
-        <span className="form-label" style={{ marginBottom: 0 }}>Rule enabled</span>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-          style={{ accentColor: "#fff" }}
-        />
-      </label>
+      {mode === "limit" && (
+        <div className="field">
+          <span className="field__label">Limit (min/window)</span>
+          <input
+            className="input"
+            type="number"
+            min={1}
+            max={1440}
+            value={limitMinutes}
+            onChange={(e) => {
+              setLimitMinutes(e.target.value);
+              setErrors((p) => ({ ...p, limitMinutes: undefined }));
+            }}
+          />
+          {errors.limitMinutes && (
+            <p className="field__error">{errors.limitMinutes}</p>
+          )}
+        </div>
+      )}
+
+      {/* Enabled toggle */}
+      <div
+        className="field"
+        style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+      >
+        <span className="field__label" style={{ marginBottom: 0 }}>Rule active</span>
+        <label className="toggle">
+          <input
+            className="toggle__input"
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+          />
+          <span className="toggle__track"><span className="toggle__thumb" /></span>
+        </label>
+      </div>
     </Modal>
   );
 }

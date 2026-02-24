@@ -1,3 +1,5 @@
+// FILE: src/ui/options/components/Modal.tsx
+
 import { type ReactNode, useEffect } from "react";
 
 interface ModalProps {
@@ -27,7 +29,7 @@ export function Modal({ title, onClose, children, footer }: ModalProps) {
       <div className="modal-box" role="dialog" aria-modal="true">
         <div className="modal-header">
           <h2 className="modal-title">{title}</h2>
-          <button className="btn-ghost modal-close" onClick={onClose} aria-label="Close">
+          <button className="btn btn-ghost btn--icon modal-close" onClick={onClose} aria-label="Close">
             ✕
           </button>
         </div>

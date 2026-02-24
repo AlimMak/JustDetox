@@ -1,3 +1,5 @@
+// FILE: src/ui/options/components/DashboardPanel.tsx
+
 import { useDashboard } from "../hooks/useDashboard";
 import { BarChart } from "./BarChart";
 import type { Settings } from "../../../core/types";
@@ -5,65 +7,102 @@ import { formatTime } from "../../popup/utils/formatTime";
 
 interface DashboardPanelProps {
   settings: Settings;
+  patch: (update: Partial<Settings> | ((prev: Settings) => Settings)) => void;
 }
 
-export function DashboardPanel({ settings }: DashboardPanelProps) {
+export function DashboardPanel({ settings, patch }: DashboardPanelProps) {
   const { domainStats, groupStats, totalSeconds, loading, refresh } =
     useDashboard(settings);
 
-  const { intervalHours } = settings.resetWindow;
-  const hasGroups = settings.groups.length > 0;
-
   return (
     <div className="panel-content">
-      {/* Header */}
-      <div className="panel-title-row">
+      {/* Header row: title + refresh */}
+      <div className="panel-header">
         <div>
-          <h1 className="panel-title">Dashboard</h1>
-          <p className="panel-subtitle">
-            Usage in the current {intervalHours}h window.
-          </p>
+          <h1 className="panel-title">Rules</h1>
+          <p className="panel-subtitle">Overview of your blocking rules and usage this window.</p>
         </div>
         <button
-          className="btn-secondary btn-sm"
+          className="btn btn-secondary btn--sm"
           onClick={() => void refresh()}
           disabled={loading}
-          aria-label="Refresh stats"
         >
-          {loading ? "…" : "↻ Refresh"}
+          {loading ? "…" : "Refresh"}
         </button>
       </div>
 
-      {/* Total summary row */}
-      {!loading && totalSeconds > 0 && (
-        <div className="dash-summary">
-          <span className="dash-summary-label">Total tracked</span>
-          <span className="dash-summary-value">{formatTime(totalSeconds)}</span>
+      {/* Master toggle card */}
+      <div
+        className={`master-toggle-card${settings.disabled ? " disabled" : ""}`}
+        style={{ marginBottom: "var(--sp-6)" }}
+      >
+        <div>
+          <p className="master-toggle-label">
+            {settings.disabled ? "Extension disabled" : "Extension enabled"}
+          </p>
+          <p className="master-toggle-sub">
+            {settings.disabled
+              ? "No sites are blocked or tracked."
+              : "Sites are blocked per your rules."}
+          </p>
+        </div>
+        <label className="toggle">
+          <input
+            className="toggle__input"
+            type="checkbox"
+            checked={!settings.disabled}
+            onChange={() => patch({ disabled: !settings.disabled })}
+          />
+          <span className="toggle__track"><span className="toggle__thumb" /></span>
+        </label>
+      </div>
+
+      {/* Stats row */}
+      {!loading && (
+        <div className="stat-row" style={{ marginBottom: "var(--sp-6)" }}>
+          <div className="stat-card">
+            <span className="stat-card__label">Groups</span>
+            <span className="stat-card__value tabular">{settings.groups.length}</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-card__label">Site rules</span>
+            <span className="stat-card__value tabular">{settings.siteRules.length}</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-card__label">Tracked today</span>
+            <span className="stat-card__value tabular">{formatTime(totalSeconds)}</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-card__label">Window</span>
+            <span className="stat-card__value tabular">{settings.resetWindow.intervalHours}h</span>
+          </div>
         </div>
       )}
 
       {/* Top sites */}
       <section className="panel-section">
-        <p className="panel-section-title">Top sites</p>
+        <p className="section-heading">Top sites this window</p>
         {loading ? (
-          <p className="muted">Loading…</p>
+          <p style={{ color: "var(--text-3)", fontSize: "var(--text-sm)" }}>Loading…</p>
+        ) : domainStats.length === 0 ? (
+          <div className="empty-state">
+            <p className="empty-state__heading">No data yet.</p>
+            <p className="empty-state__body">Browse some sites and refresh to see usage stats.</p>
+          </div>
         ) : (
           <BarChart
-            items={domainStats.map((d) => ({
-              label: d.hostname,
-              value: d.activeSeconds,
-            }))}
-            emptyMessage="No site visits recorded yet. Browse a few pages and refresh."
+            items={domainStats.map((d) => ({ label: d.hostname, value: d.activeSeconds }))}
+            emptyMessage=""
           />
         )}
       </section>
 
-      {/* Groups */}
-      {hasGroups && (
+      {/* Groups summary — only if groups exist */}
+      {settings.groups.length > 0 && (
         <section className="panel-section">
-          <p className="panel-section-title">Groups</p>
+          <p className="section-heading">Groups</p>
           {loading ? (
-            <p className="muted">Loading…</p>
+            <p style={{ color: "var(--text-3)", fontSize: "var(--text-sm)" }}>Loading…</p>
           ) : (
             <BarChart
               items={groupStats.map((g) => ({
@@ -71,20 +110,13 @@ export function DashboardPanel({ settings }: DashboardPanelProps) {
                 value: g.activeSeconds,
                 sublabel:
                   g.mode === "limit"
-                    ? `${g.domainCount} domain${g.domainCount !== 1 ? "s" : ""} · limit: ${settings.groups.find((x) => x.id === g.groupId)?.limitMinutes ?? 0} min`
+                    ? `${g.domainCount} domain${g.domainCount !== 1 ? "s" : ""} · ${settings.groups.find((x) => x.id === g.groupId)?.limitMinutes ?? 0}min limit`
                     : `${g.domainCount} domain${g.domainCount !== 1 ? "s" : ""} · blocked`,
               }))}
-              emptyMessage="No group usage recorded yet."
+              emptyMessage="No group usage this window."
             />
           )}
         </section>
-      )}
-
-      {/* Hint when extension is disabled */}
-      {settings.disabled && (
-        <p className="muted" style={{ marginTop: 8 }}>
-          The extension is currently disabled — new time is not being tracked.
-        </p>
       )}
     </div>
   );

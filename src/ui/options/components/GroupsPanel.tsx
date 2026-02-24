@@ -1,3 +1,5 @@
+// FILE: src/ui/options/components/GroupsPanel.tsx
+
 import { useState } from "react";
 import type { Settings, SiteGroup } from "../../../core/types";
 import { GroupEditor } from "./GroupEditor";
@@ -5,11 +7,6 @@ import { GroupEditor } from "./GroupEditor";
 interface GroupsPanelProps {
   settings: Settings;
   patch: (update: Partial<Settings>) => void;
-}
-
-function modeBadge(group: SiteGroup): string {
-  if (group.mode === "block") return "Blocked";
-  return `${group.limitMinutes ?? 0} min shared`;
 }
 
 export function GroupsPanel({ settings, patch }: GroupsPanelProps) {
@@ -38,49 +35,70 @@ export function GroupsPanel({ settings, patch }: GroupsPanelProps) {
 
   return (
     <div className="panel-content">
-      <div className="panel-title-row">
+      <div className="panel-header">
         <div>
           <h1 className="panel-title">Groups</h1>
           <p className="panel-subtitle">
             Group related domains and apply a shared block or time limit.
           </p>
         </div>
-        <button className="btn-primary" onClick={() => setEditing("new")}>
+        <button className="btn btn-primary" onClick={() => setEditing("new")}>
           + New group
         </button>
       </div>
 
       {settings.groups.length === 0 ? (
         <div className="empty-state">
-          <span>No groups yet.</span>
-          <span className="muted">Create a group to block multiple sites together.</span>
+          <p className="empty-state__heading">No groups yet.</p>
+          <p className="empty-state__body">
+            Create a group to block multiple sites together.
+          </p>
         </div>
       ) : (
-        <ul className="rule-list" role="list">
+        <div className="rule-card-list">
           {settings.groups.map((g) => (
-            <li key={g.id} className={`rule-card${g.enabled ? "" : " rule-card--disabled"}`}>
-              <div className="rule-card__info">
-                <span className="rule-card__name">{g.name}</span>
-                <span className="rule-card__meta">
-                  {modeBadge(g)} · {g.domains.length} domain{g.domains.length !== 1 ? "s" : ""}
+            <div
+              key={g.id}
+              className={`list-row list-row--interactive${g.enabled ? "" : " list-row--disabled"}`}
+            >
+              <div className="list-row__main">
+                <span className="list-row__title">{g.name}</span>
+                <span className="list-row__sub">
+                  {g.mode === "block"
+                    ? "Block"
+                    : `${g.limitMinutes ?? 0} min/window`}{" "}
+                  · {g.domains.length} domain{g.domains.length !== 1 ? "s" : ""}
                 </span>
               </div>
-              <div className="rule-card__actions">
-                <button
-                  className={`status-dot${g.enabled ? " on" : ""}`}
+              <div className="list-row__aside">
+                <label
+                  className="toggle"
                   title={g.enabled ? "Enabled — click to disable" : "Disabled — click to enable"}
-                  onClick={() => toggleEnabled(g.id)}
-                />
-                <button className="btn-secondary btn-sm" onClick={() => setEditing(g)}>
+                >
+                  <input
+                    className="toggle__input"
+                    type="checkbox"
+                    checked={g.enabled}
+                    onChange={() => toggleEnabled(g.id)}
+                  />
+                  <span className="toggle__track"><span className="toggle__thumb" /></span>
+                </label>
+                <button
+                  className="btn btn-ghost btn--sm"
+                  onClick={() => setEditing(g)}
+                >
                   Edit
                 </button>
-                <button className="btn-danger btn-sm" onClick={() => deleteGroup(g.id)}>
+                <button
+                  className="btn btn-danger btn--sm"
+                  onClick={() => deleteGroup(g.id)}
+                >
                   Delete
                 </button>
               </div>
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
 
       {editing !== null && (
