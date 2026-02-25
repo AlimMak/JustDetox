@@ -4,6 +4,7 @@ import { useDashboard } from "../hooks/useDashboard";
 import { BarChart } from "./BarChart";
 import type { Settings } from "../../../core/types";
 import { formatTime } from "../../popup/utils/formatTime";
+import { useFriction } from "../context/FrictionContext";
 
 interface DashboardPanelProps {
   settings: Settings;
@@ -13,6 +14,19 @@ interface DashboardPanelProps {
 export function DashboardPanel({ settings, patch }: DashboardPanelProps) {
   const { domainStats, groupStats, totalSeconds, loading, refresh } =
     useDashboard(settings);
+  const { askFriction } = useFriction();
+
+  const handleDisableToggle = async () => {
+    // Only gate the action when the extension is currently ENABLED (i.e. user is disabling it).
+    if (!settings.disabled) {
+      const ok = await askFriction({
+        actionType: "disable-extension",
+        label: "Extension — master toggle",
+      });
+      if (!ok) return;
+    }
+    patch({ disabled: !settings.disabled });
+  };
 
   return (
     <div className="panel-content">
@@ -51,7 +65,7 @@ export function DashboardPanel({ settings, patch }: DashboardPanelProps) {
             className="toggle__input"
             type="checkbox"
             checked={!settings.disabled}
-            onChange={() => patch({ disabled: !settings.disabled })}
+            onChange={() => void handleDisableToggle()}
           />
           <span className="toggle__track"><span className="toggle__thumb" /></span>
         </label>

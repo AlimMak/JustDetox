@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Settings, SiteRule } from "../../../core/types";
 import { SiteEditor } from "./SiteEditor";
+import { useFriction } from "../context/FrictionContext";
 
 interface SitesPanelProps {
   settings: Settings;
@@ -12,6 +13,7 @@ interface SitesPanelProps {
 export function SitesPanel({ settings, patch }: SitesPanelProps) {
   const [editing, setEditing] = useState<SiteRule | null | "new">(null);
   const [search, setSearch] = useState("");
+  const { askFriction } = useFriction();
 
   const saveRule = (saved: SiteRule) => {
     const exists = settings.siteRules.some((r) => r.domain === saved.domain);
@@ -22,11 +24,27 @@ export function SitesPanel({ settings, patch }: SitesPanelProps) {
     setEditing(null);
   };
 
-  const deleteRule = (domain: string) => {
+  const deleteRule = async (domain: string) => {
+    const ok = await askFriction({
+      actionType: "delete-site-rule",
+      label: `${domain} — site rule`,
+      domain,
+    });
+    if (!ok) return;
     patch({ siteRules: settings.siteRules.filter((r) => r.domain !== domain) });
   };
 
-  const toggleEnabled = (domain: string) => {
+  const toggleEnabled = async (domain: string) => {
+    const rule = settings.siteRules.find((r) => r.domain === domain);
+    // Only gate when the rule is currently ENABLED (user is disabling it).
+    if (rule?.enabled) {
+      const ok = await askFriction({
+        actionType: "disable-site-rule",
+        label: `${domain} — ${rule.mode === "block" ? "block" : `${rule.limitMinutes ?? 0}min limit`}`,
+        domain,
+      });
+      if (!ok) return;
+    }
     patch({
       siteRules: settings.siteRules.map((r) =>
         r.domain === domain ? { ...r, enabled: !r.enabled } : r,
@@ -97,7 +115,7 @@ export function SitesPanel({ settings, patch }: SitesPanelProps) {
                         className="toggle__input"
                         type="checkbox"
                         checked={r.enabled}
-                        onChange={() => toggleEnabled(r.domain)}
+                        onChange={() => void toggleEnabled(r.domain)}
                       />
                       <span className="toggle__track"><span className="toggle__thumb" /></span>
                     </label>
@@ -109,7 +127,7 @@ export function SitesPanel({ settings, patch }: SitesPanelProps) {
                     </button>
                     <button
                       className="btn btn-danger btn--sm"
-                      onClick={() => deleteRule(r.domain)}
+                      onClick={() => void deleteRule(r.domain)}
                     >
                       Delete
                     </button>

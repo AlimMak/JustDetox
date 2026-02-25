@@ -75,6 +75,22 @@ export interface ResetWindowConfig {
   intervalHours: number;
 }
 
+/**
+ * Configuration for the Friction Layer — intentional friction on
+ * protective-rule changes to slow impulsive edits.
+ */
+export interface FrictionSettings {
+  /** Master toggle — when false, all friction checks pass-through instantly. */
+  enabled: boolean;
+  /**
+   * When true the user *must* enter reflection text before confirming.
+   * When false, the reflection field is shown but empty submission is allowed.
+   */
+  requireReflection: boolean;
+  /** When true, reflection entries are persisted to chrome.storage.local. */
+  logReflections: boolean;
+}
+
 /** Top-level user settings persisted in chrome.storage.local. */
 export interface Settings {
   /** Schema version — used for future migrations. */
@@ -94,6 +110,7 @@ export interface Settings {
   globalBlockList: string[];
   globalDefaults?: GlobalDefaults;
   resetWindow: ResetWindowConfig;
+  friction: FrictionSettings;
 }
 
 // ─── Usage ────────────────────────────────────────────────────────────────────
@@ -135,6 +152,12 @@ export const DEFAULT_RESET_WINDOW: ResetWindowConfig = {
   intervalHours: 24,
 };
 
+export const DEFAULT_FRICTION_SETTINGS: FrictionSettings = {
+  enabled: true,
+  requireReflection: false,
+  logReflections: true,
+};
+
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
   disabled: false,
@@ -142,4 +165,5 @@ export const DEFAULT_SETTINGS: Settings = {
   groups: [],
   globalBlockList: [],
   resetWindow: { ...DEFAULT_RESET_WINDOW },
+  friction: { ...DEFAULT_FRICTION_SETTINGS },
 };

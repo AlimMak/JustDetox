@@ -5,6 +5,7 @@ import type { SiteGroup, RuleMode } from "../../../core/types";
 import { Modal } from "./Modal";
 import { DomainPillInput } from "./DomainPillInput";
 import { generateId } from "../utils/id";
+import { useFriction } from "../context/FrictionContext";
 
 interface GroupEditorProps {
   group: SiteGroup | null; // null = create new
@@ -26,6 +27,7 @@ export function GroupEditor({ group, onSave, onClose }: GroupEditorProps) {
   const [domains, setDomains] = useState<string[]>(group?.domains ?? []);
   const [enabled, setEnabled] = useState(group?.enabled ?? true);
   const [errors, setErrors] = useState<FormErrors>({});
+  const { askFriction } = useFriction();
 
   const validate = (): FormErrors => {
     const errs: FormErrors = {};
@@ -39,7 +41,7 @@ export function GroupEditor({ group, onSave, onClose }: GroupEditorProps) {
     return errs;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const errs = validate();
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -54,6 +56,28 @@ export function GroupEditor({ group, onSave, onClose }: GroupEditorProps) {
       domains,
       enabled,
     };
+
+    // Friction checks only apply when editing an existing group, not creating.
+    if (!isNew && group !== null) {
+      const wasBlock = group.mode === "block";
+      const newLimitMins = parseInt(limitMinutes, 10);
+      const oldLimitMins = group.limitMinutes ?? 0;
+
+      if (wasBlock && mode === "limit") {
+        const ok = await askFriction({
+          actionType: "group-block-to-limit",
+          label: `${saved.name} — block → time limit`,
+        });
+        if (!ok) return;
+      } else if (group.mode === "limit" && mode === "limit" && newLimitMins > oldLimitMins) {
+        const ok = await askFriction({
+          actionType: "group-limit-increase",
+          label: `${saved.name} — limit ${oldLimitMins}min → ${newLimitMins}min`,
+        });
+        if (!ok) return;
+      }
+    }
+
     onSave(saved);
   };
 
@@ -64,7 +88,7 @@ export function GroupEditor({ group, onSave, onClose }: GroupEditorProps) {
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave}>
+          <button className="btn btn-primary" onClick={() => void handleSave()}>
             {isNew ? "Create" : "Save"}
           </button>
         </>

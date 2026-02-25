@@ -692,6 +692,192 @@
 
 
 /* ══════════════════════════════════════════════════════════════════════════════
+   FRICTION GATE
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Fullscreen black overlay — intentionally higher z-index than modal (200) */
+.friction-gate {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-6);
+  animation: friction-in var(--dur-slow) var(--ease-out) both;
+}
+
+@keyframes friction-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.friction-gate__box {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+}
+
+.friction-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-6);
+  text-align: center;
+  animation: friction-step-in var(--dur-slow) var(--ease-out) both;
+}
+
+@keyframes friction-step-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.friction-gate__eyebrow {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.friction-gate__headline {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  color: var(--text-1);
+  line-height: var(--lh-tight);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.friction-gate__sub {
+  font-size: var(--text-base);
+  color: var(--text-2);
+  line-height: var(--lh-base);
+  max-width: 360px;
+}
+
+/* Context info block */
+.friction-gate__context {
+  width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.friction-context-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.friction-context-row:last-child {
+  border-bottom: none;
+}
+
+.friction-context-label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  flex-shrink: 0;
+  width: 120px;
+  text-align: left;
+}
+
+.friction-context-value {
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  text-align: left;
+  word-break: break-all;
+}
+
+/* Countdown */
+.friction-gate__countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.friction-countdown-label {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+/* Continue button */
+.friction-gate__continue {
+  min-width: 160px;
+}
+
+.friction-gate__continue--locked {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+/* Reflection textarea */
+.friction-gate__textarea {
+  width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  font-family: var(--font);
+  font-size: var(--text-base);
+  color: var(--text-1);
+  resize: vertical;
+  line-height: var(--lh-base);
+  transition: border-color var(--dur-base) var(--ease-out);
+}
+
+.friction-gate__textarea::placeholder { color: var(--text-3); }
+
+.friction-gate__textarea:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.friction-gate__error {
+  font-size: var(--text-xs);
+  color: var(--text-danger);
+  align-self: flex-start;
+}
+
+/* Action buttons area */
+.friction-gate__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+}
+
+.friction-gate__actions--row {
+  flex-direction: row;
+  justify-content: center;
+}
+
+.friction-gate__keep {
+  min-width: 200px;
+}
+
+.friction-gate__apply {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+.friction-gate__apply:hover {
+  color: var(--text-danger);
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
    DROPDOWN / SELECT
    ══════════════════════════════════════════════════════════════════════════════ */
 

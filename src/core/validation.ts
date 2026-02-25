@@ -113,6 +113,12 @@ export const globalDefaultsSchema = z
   })
   .optional();
 
+export const frictionSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  requireReflection: z.boolean().default(false),
+  logReflections: z.boolean().default(true),
+});
+
 export const settingsSchema = z.object({
   version: z.number().int().min(1).default(SETTINGS_VERSION),
   disabled: z.boolean().default(false),
@@ -121,6 +127,11 @@ export const settingsSchema = z.object({
   globalBlockList: z.array(domainSchema).default([]),
   globalDefaults: globalDefaultsSchema,
   resetWindow: resetWindowSchema.default({ intervalHours: 24 }),
+  friction: frictionSettingsSchema.default({
+    enabled: true,
+    requireReflection: false,
+    logReflections: true,
+  }),
 });
 
 // ─── Usage ────────────────────────────────────────────────────────────────────

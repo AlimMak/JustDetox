@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Settings, SiteGroup } from "../../../core/types";
 import { GroupEditor } from "./GroupEditor";
+import { useFriction } from "../context/FrictionContext";
 
 interface GroupsPanelProps {
   settings: Settings;
@@ -11,6 +12,7 @@ interface GroupsPanelProps {
 
 export function GroupsPanel({ settings, patch }: GroupsPanelProps) {
   const [editing, setEditing] = useState<SiteGroup | null | "new">(null);
+  const { askFriction } = useFriction();
 
   const saveGroup = (saved: SiteGroup) => {
     const exists = settings.groups.some((g) => g.id === saved.id);
@@ -21,11 +23,26 @@ export function GroupsPanel({ settings, patch }: GroupsPanelProps) {
     setEditing(null);
   };
 
-  const deleteGroup = (id: string) => {
+  const deleteGroup = async (id: string) => {
+    const group = settings.groups.find((g) => g.id === id);
+    const ok = await askFriction({
+      actionType: "delete-group",
+      label: `${group?.name ?? id} — group`,
+    });
+    if (!ok) return;
     patch({ groups: settings.groups.filter((g) => g.id !== id) });
   };
 
-  const toggleEnabled = (id: string) => {
+  const toggleEnabled = async (id: string) => {
+    const group = settings.groups.find((g) => g.id === id);
+    // Only gate when the group is currently ENABLED (user is disabling it).
+    if (group?.enabled) {
+      const ok = await askFriction({
+        actionType: "disable-group",
+        label: `${group.name} — ${group.mode === "block" ? "block" : `${group.limitMinutes ?? 0}min limit`}`,
+      });
+      if (!ok) return;
+    }
     patch({
       groups: settings.groups.map((g) =>
         g.id === id ? { ...g, enabled: !g.enabled } : g,
@@ -79,7 +96,7 @@ export function GroupsPanel({ settings, patch }: GroupsPanelProps) {
                     className="toggle__input"
                     type="checkbox"
                     checked={g.enabled}
-                    onChange={() => toggleEnabled(g.id)}
+                    onChange={() => void toggleEnabled(g.id)}
                   />
                   <span className="toggle__track"><span className="toggle__thumb" /></span>
                 </label>
@@ -91,7 +108,7 @@ export function GroupsPanel({ settings, patch }: GroupsPanelProps) {
                 </button>
                 <button
                   className="btn btn-danger btn--sm"
-                  onClick={() => deleteGroup(g.id)}
+                  onClick={() => void deleteGroup(g.id)}
                 >
                   Delete
                 </button>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { SiteRule, RuleMode } from "../../../core/types";
 import { sanitizeDomain, isValidDomain } from "../../../core/validation";
 import { Modal } from "./Modal";
+import { useFriction } from "../context/FrictionContext";
 
 interface SiteEditorProps {
   rule: SiteRule | null; // null = create new
@@ -23,6 +24,7 @@ export function SiteEditor({ rule, onSave, onClose }: SiteEditorProps) {
   const [limitMinutes, setLimitMinutes] = useState(String(rule?.limitMinutes ?? 30));
   const [enabled, setEnabled] = useState(rule?.enabled ?? true);
   const [errors, setErrors] = useState<FormErrors>({});
+  const { askFriction } = useFriction();
 
   const validate = (): FormErrors => {
     const errs: FormErrors = {};
@@ -38,7 +40,7 @@ export function SiteEditor({ rule, onSave, onClose }: SiteEditorProps) {
     return errs;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const errs = validate();
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -51,6 +53,30 @@ export function SiteEditor({ rule, onSave, onClose }: SiteEditorProps) {
       limitMinutes: mode === "limit" ? parseInt(limitMinutes, 10) : undefined,
       enabled,
     };
+
+    // Friction checks only apply when editing an existing rule, not creating.
+    if (!isNew && rule !== null) {
+      const wasBlock = rule.mode === "block";
+      const newLimitMins = parseInt(limitMinutes, 10);
+      const oldLimitMins = rule.limitMinutes ?? 0;
+
+      if (wasBlock && mode === "limit") {
+        const ok = await askFriction({
+          actionType: "rule-block-to-limit",
+          label: `${saved.domain} — block → time limit`,
+          domain: saved.domain,
+        });
+        if (!ok) return;
+      } else if (rule.mode === "limit" && mode === "limit" && newLimitMins > oldLimitMins) {
+        const ok = await askFriction({
+          actionType: "rule-limit-increase",
+          label: `${saved.domain} — limit ${oldLimitMins}min → ${newLimitMins}min`,
+          domain: saved.domain,
+        });
+        if (!ok) return;
+      }
+    }
+
     onSave(saved);
   };
 
@@ -61,7 +87,7 @@ export function SiteEditor({ rule, onSave, onClose }: SiteEditorProps) {
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave}>
+          <button className="btn btn-primary" onClick={() => void handleSave()}>
             {isNew ? "Add rule" : "Save"}
           </button>
         </>
