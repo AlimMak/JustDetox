@@ -9,9 +9,10 @@ import { useFriction } from "../context/FrictionContext";
 interface DashboardPanelProps {
   settings: Settings;
   patch: (update: Partial<Settings> | ((prev: Settings) => Settings)) => void;
+  lockedInActive?: boolean;
 }
 
-export function DashboardPanel({ settings, patch }: DashboardPanelProps) {
+export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPanelProps) {
   const { domainStats, groupStats, totalSeconds, loading, refresh } =
     useDashboard(settings);
   const { askFriction } = useFriction();
@@ -36,13 +37,18 @@ export function DashboardPanel({ settings, patch }: DashboardPanelProps) {
           <h1 className="panel-title">Rules</h1>
           <p className="panel-subtitle">Overview of your blocking rules and usage this window.</p>
         </div>
-        <button
-          className="btn btn-secondary btn--sm"
-          onClick={() => void refresh()}
-          disabled={loading}
-        >
-          {loading ? "…" : "Refresh"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+          {lockedInActive && (
+            <span className="dashboard-locked-in-badge">Locked In Mode</span>
+          )}
+          <button
+            className="btn btn-secondary btn--sm"
+            onClick={() => void refresh()}
+            disabled={loading}
+          >
+            {loading ? "…" : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {/* Master toggle card */}

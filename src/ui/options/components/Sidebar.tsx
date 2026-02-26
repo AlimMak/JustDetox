@@ -2,6 +2,7 @@
 
 export type Section =
   | "rules"
+  | "locked-in"
   | "settings"
   | "groups"
   | "sites"
@@ -11,6 +12,7 @@ export type Section =
 
 const VALID_SECTIONS: Section[] = [
   "rules",
+  "locked-in",
   "settings",
   "groups",
   "sites",
@@ -21,6 +23,7 @@ const VALID_SECTIONS: Section[] = [
 
 const NAV_ITEMS: { id: Section; label: string }[] = [
   { id: "rules",         label: "Rules" },
+  { id: "locked-in",    label: "Locked In" },
   { id: "groups",        label: "Groups" },
   { id: "sites",         label: "Sites" },
   { id: "settings",      label: "Settings" },
@@ -33,9 +36,10 @@ interface SidebarProps {
   active: Section;
   onSelect: (s: Section) => void;
   extensionDisabled: boolean;
+  lockedInActive?: boolean;
 }
 
-export function Sidebar({ active, onSelect, extensionDisabled }: SidebarProps) {
+export function Sidebar({ active, onSelect, extensionDisabled, lockedInActive }: SidebarProps) {
   return (
     <nav className="options-sidebar">
       <div className="sidebar-brand">
@@ -45,16 +49,22 @@ export function Sidebar({ active, onSelect, extensionDisabled }: SidebarProps) {
         >
           {extensionDisabled ? "Disabled" : "Active"}
         </span>
+        {lockedInActive && (
+          <span className="sidebar-locked-in-badge">Locked In</span>
+        )}
       </div>
 
       <ul className="sidebar-nav" role="list">
         {NAV_ITEMS.map(({ id, label }) => (
           <li key={id}>
             <button
-              className={`sidebar-nav-item${active === id ? " active" : ""}`}
+              className={`sidebar-nav-item${active === id ? " active" : ""}${id === "locked-in" && lockedInActive ? " sidebar-nav-item--locked-in" : ""}`}
               onClick={() => onSelect(id)}
             >
               {label}
+              {id === "locked-in" && lockedInActive && (
+                <span className="sidebar-locked-in-dot" />
+              )}
             </button>
           </li>
         ))}

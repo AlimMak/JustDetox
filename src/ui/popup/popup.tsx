@@ -1,9 +1,10 @@
-import { StrictMode } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../shared.css";
 import "./popup.css";
 import { useActiveTab } from "./hooks/useActiveTab";
 import { useSiteStatus } from "./hooks/useSiteStatus";
+import { useLockedInSession } from "./hooks/useLockedInSession";
 import { formatTime } from "./utils/formatTime";
 
 function openAt(hash: string) {
@@ -18,10 +19,30 @@ const MODE_BADGE: Record<string, { label: string; cls: string }> = {
   unrestricted:   { label: "Unrestricted", cls: "popup-mode-badge--free" },
 };
 
+/** Live countdown of seconds remaining in a Locked In session. */
+function useSessionCountdown(endTs: number | null): number {
+  const [remaining, setRemaining] = useState<number>(() =>
+    endTs ? Math.max(0, Math.floor((endTs - Date.now()) / 1000)) : 0,
+  );
+
+  useEffect(() => {
+    if (!endTs) return;
+    const tick = () => setRemaining(Math.max(0, Math.floor((endTs - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 1_000);
+    return () => clearInterval(id);
+  }, [endTs]);
+
+  return remaining;
+}
+
 function Popup() {
   const { hostname, loading: tabLoading, error: tabError } = useActiveTab();
   const status = useSiteStatus(tabLoading ? null : hostname);
-  const loading = tabLoading || status.loading;
+  const { session, loading: sessionLoading } = useLockedInSession();
+  const loading = tabLoading || status.loading || sessionLoading;
+
+  const sessionRemaining = useSessionCountdown(session?.endTs ?? null);
 
   const badge = MODE_BADGE[status.mode] ?? MODE_BADGE.unrestricted;
 
@@ -39,7 +60,29 @@ function Popup() {
     <div className="popup-root">
       <header className="popup-header">
         <span className="popup-wordmark">JustDetox</span>
+        {session && (
+          <span className="popup-locked-in-pill">Locked In</span>
+        )}
       </header>
+
+      {/* Locked In session banner */}
+      {!loading && session && (
+        <div className="popup-session-banner">
+          <div className="popup-session-info">
+            <span className="popup-session-time">{formatTime(sessionRemaining)}</span>
+            <span className="popup-session-sub">
+              {session.allowedDomains.length} site{session.allowedDomains.length !== 1 ? "s" : ""} allowed
+            </span>
+          </div>
+          <button
+            className="btn btn-ghost btn--sm"
+            onClick={() => openAt("#locked-in")}
+            style={{ fontSize: "var(--text-xs)" }}
+          >
+            Settings
+          </button>
+        </div>
+      )}
 
       {loading && <div className="popup-loading">Loading…</div>}
 
@@ -100,6 +143,14 @@ function Popup() {
         >
           Settings
         </button>
+        {!loading && !session && (
+          <button
+            className="btn btn-secondary popup-locked-in-start"
+            onClick={() => openAt("#locked-in")}
+          >
+            Lock In
+          </button>
+        )}
       </footer>
     </div>
   );

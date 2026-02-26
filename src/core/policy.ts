@@ -27,6 +27,9 @@ export const MSG_HARD_BLOCK = "not right now, lock back in";
 /** Shown when the time limit for the current window has been exhausted. */
 export const MSG_TIME_UP = "no more, lock back in";
 
+/** Shown when a domain is accessed outside the active Locked In session's allowed list. */
+export const MSG_LOCKED_IN = "Not part of your session. Stay locked in.";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type PolicyReason = "site-rule" | "group" | "global-block-list" | "global-defaults";
@@ -147,6 +150,24 @@ export function computeBlockedState(
   usage: UsageMap,
   settings: Settings,
 ): BlockedState {
+  // ── Locked In Mode: evaluated before all other rules ──────────────────────
+  const session = settings.lockedInSession;
+  if (session?.active && Date.now() < session.endTs) {
+    const host = normalizeHostname(hostname);
+    const isAllowed = session.allowedDomains.some((d) =>
+      domainCovers(host, normalizeHostname(d)),
+    );
+
+    if (!isAllowed) {
+      // Domain is not in the session's allowed list — block unconditionally.
+      return { blocked: true, message: MSG_LOCKED_IN, mode: "block" };
+    }
+
+    // Domain is in the allowed list — grant access, bypassing all other rules.
+    // Time tracking still accumulates normally via the tracker.
+    return { blocked: false };
+  }
+
   const policy = resolveEffectivePolicy(hostname, settings);
   if (!policy) return { blocked: false };
 

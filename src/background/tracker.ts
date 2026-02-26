@@ -28,6 +28,7 @@
 
 import { getSettings, getUsage, setUsage, isWindowExpired } from "../core/storage";
 import type { DomainUsage, UsageMap } from "../core/types";
+import { checkLockedInExpiry } from "./lockedIn";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -252,6 +253,9 @@ async function handleAlarmTick(): Promise<void> {
   if (session.activeDomain) {
     await sessionSet({ lastFlushTs: now });
   }
+
+  // Expire Locked In Mode session if its endTs has passed.
+  await checkLockedInExpiry();
 }
 
 // ─── Startup helpers ─────────────────────────────────────────────────────────

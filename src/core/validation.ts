@@ -113,6 +113,16 @@ export const globalDefaultsSchema = z
   })
   .optional();
 
+export const lockedInSessionSchema = z
+  .object({
+    active: z.boolean().default(false),
+    startTs: z.number().min(0),
+    endTs: z.number().min(0),
+    allowedDomains: z.array(z.string()).default([]),
+    sourceGroupId: z.string().optional(),
+  })
+  .optional();
+
 export const frictionSettingsSchema = z.object({
   enabled: z.boolean().default(true),
   requireReflection: z.boolean().default(false),
@@ -132,6 +142,7 @@ export const settingsSchema = z.object({
     requireReflection: false,
     logReflections: true,
   }),
+  lockedInSession: lockedInSessionSchema,
 });
 
 // ─── Usage ────────────────────────────────────────────────────────────────────

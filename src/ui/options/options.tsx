@@ -16,6 +16,7 @@ import { GroupsPanel } from "./components/GroupsPanel";
 import { SitesPanel } from "./components/SitesPanel";
 import { ImportExportPanel } from "./components/ImportExportPanel";
 import { AboutPanel } from "./components/AboutPanel";
+import { LockedInPanel } from "./components/LockedInPanel";
 
 function Options() {
   // Initialise from location.hash so popup deep-links work (#rules, #settings, …)
@@ -23,6 +24,10 @@ function Options() {
   const { settings, loading, patch } = useSettings();
   const { askFriction, gateState, gateHandlers } = useFrictionGate(
     settings.friction,
+  );
+
+  const lockedInActive = Boolean(
+    settings.lockedInSession?.active && Date.now() < (settings.lockedInSession?.endTs ?? 0),
   );
 
   if (loading) {
@@ -36,11 +41,15 @@ function Options() {
           active={section}
           onSelect={setSection}
           extensionDisabled={settings.disabled}
+          lockedInActive={lockedInActive}
         />
 
         <main className="options-panel">
           {section === "rules" && (
-            <DashboardPanel settings={settings} patch={patch} />
+            <DashboardPanel settings={settings} patch={patch} lockedInActive={lockedInActive} />
+          )}
+          {section === "locked-in" && (
+            <LockedInPanel settings={settings} patch={patch} />
           )}
           {section === "settings" && (
             <SettingsPanel settings={settings} patch={patch} />

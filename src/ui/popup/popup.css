@@ -142,6 +142,51 @@
   color: var(--text-danger);
 }
 
+/* ─── Locked In pill (header) ────────────────────────────────────────────────── */
+
+.popup-locked-in-pill {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ─── Session banner ─────────────────────────────────────────────────────────── */
+
+.popup-session-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.popup-session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.popup-session-time {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semi);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  letter-spacing: -0.01em;
+}
+
+.popup-session-sub {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
 /* ─── Footer ─────────────────────────────────────────────────────────────────── */
 
 .popup-footer {
@@ -155,4 +200,11 @@
   flex: 1;
   font-size: var(--text-xs);
   height: 28px;
+}
+
+.popup-locked-in-start {
+  font-size: var(--text-xs) !important;
+  height: 28px !important;
+  padding: 0 var(--sp-2) !important;
+  flex-shrink: 0;
 }

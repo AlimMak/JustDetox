@@ -75,6 +75,30 @@ export interface ResetWindowConfig {
   intervalHours: number;
 }
 
+// ─── Locked In Mode ───────────────────────────────────────────────────────────
+
+/**
+ * A time-bound focus session where only explicitly allowed domains are
+ * accessible. All other domains are blocked for the session duration,
+ * regardless of normal rules.
+ *
+ * `active` is set to false when the session ends (either manually or when
+ * `now >= endTs`). The background alarm checks expiry every minute.
+ */
+export interface LockedInSession {
+  active: boolean;
+  /** Unix ms timestamp when the session was started. */
+  startTs: number;
+  /** Unix ms timestamp when the session expires. */
+  endTs: number;
+  /** Normalized hostnames the user may access during this session. */
+  allowedDomains: string[];
+  /** Group ID if the domains were sourced from an existing group. */
+  sourceGroupId?: string;
+}
+
+// ─── Friction Layer ───────────────────────────────────────────────────────────
+
 /**
  * Configuration for the Friction Layer — intentional friction on
  * protective-rule changes to slow impulsive edits.
@@ -111,6 +135,8 @@ export interface Settings {
   globalDefaults?: GlobalDefaults;
   resetWindow: ResetWindowConfig;
   friction: FrictionSettings;
+  /** Active Locked In Mode session, if any. Absent when no session has ever been started. */
+  lockedInSession?: LockedInSession;
 }
 
 // ─── Usage ────────────────────────────────────────────────────────────────────
