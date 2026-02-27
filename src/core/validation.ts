@@ -155,12 +155,24 @@ export const domainUsageSchema = z.object({
 
 export const usageMapSchema = z.record(z.string(), domainUsageSchema).default({});
 
+// ─── Temptation tracking ──────────────────────────────────────────────────────
+
+export const temptationRecordSchema = z.object({
+  attempts: z.number().int().min(0),
+  lastAttemptTs: z.number().min(0),
+  lockedInAttempts: z.number().int().min(0),
+  windowStartTs: z.number().min(0),
+});
+
+export const temptationMapSchema = z.record(z.string(), temptationRecordSchema).default({});
+
 // ─── Full export ──────────────────────────────────────────────────────────────
 
 export const fullExportSchema = z.object({
   exportedAt: z.string().optional(),
   settings: settingsSchema,
   usage: usageMapSchema,
+  temptations: temptationMapSchema.optional(),
 });
 
 // ─── Inferred types (mirror of src/core/types.ts via Zod) ────────────────────

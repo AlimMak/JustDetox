@@ -15,8 +15,8 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import type { Settings, LockedInSession, SiteGroup } from "../../../core/types";
-import { sanitizeDomain, isValidDomain } from "../../../core/validation";
+import type { Settings, LockedInSession, TemptationMap } from "../../../core/types";
+import { getTemptations } from "../../../core/storage";
 import { DomainPillInput } from "./DomainPillInput";
 import { formatTime } from "../../popup/utils/formatTime";
 
@@ -62,6 +62,21 @@ interface ActiveSessionViewProps {
 function ActiveSessionView({ session, settings, onEnd }: ActiveSessionViewProps) {
   const remaining = useRemainingSeconds(session.endTs);
   const isExpired = remaining === 0;
+  const [temptations, setTemptations] = useState<TemptationMap>({});
+
+  useEffect(() => {
+    getTemptations().then(setTemptations).catch(() => {});
+    // Refresh every 10 s so the count updates while the session is active.
+    const id = setInterval(() => {
+      getTemptations().then(setTemptations).catch(() => {});
+    }, 10_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const totalLockedInAttempts = Object.values(temptations).reduce(
+    (sum, t) => sum + t.lockedInAttempts,
+    0,
+  );
 
   const sourceGroup = session.sourceGroupId
     ? settings.groups.find((g) => g.id === session.sourceGroupId)
@@ -111,6 +126,14 @@ function ActiveSessionView({ session, settings, onEnd }: ActiveSessionViewProps)
           </span>
           <span className="locked-in-meta-value">
             {new Date(session.endTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </span>
+        </div>
+        <div className="locked-in-meta-row">
+          <span className="locked-in-meta-label">Blocked attempts</span>
+          <span className="locked-in-meta-value">
+            {totalLockedInAttempts === 0
+              ? "none"
+              : `${totalLockedInAttempts}`}
           </span>
         </div>
       </div>

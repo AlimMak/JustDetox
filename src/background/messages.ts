@@ -8,6 +8,7 @@
 
 import { getSettings, getUsage } from "../core/storage";
 import { computeBlockedState } from "../core/policy";
+import { incrementAttempt } from "../core/temptation";
 import type { ExtensionMessage, CheckUrlResponse } from "../shared/messages";
 
 /**
@@ -47,6 +48,12 @@ async function handleCheckUrl(hostname: string): Promise<CheckUrlResponse> {
   if (settings.disabled) return { blocked: false };
 
   const state = computeBlockedState(hostname, usage, settings);
+
+  // Record a temptation attempt whenever an overlay will be shown.
+  if (state.blocked) {
+    // Fire-and-forget: do not delay the CHECK_URL response on storage writes.
+    void incrementAttempt(hostname, state.lockedIn ?? false);
+  }
 
   return {
     blocked: state.blocked,

@@ -14,11 +14,12 @@
  * never clobbers the other.
  */
 
-import type { Settings, DomainUsage, UsageMap, FullExport } from "./types";
+import type { Settings, DomainUsage, UsageMap, TemptationMap, FullExport } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 import {
   settingsSchema,
   usageMapSchema,
+  temptationMapSchema,
   fullExportSchema,
   parseImportJson,
 } from "./validation";
@@ -28,6 +29,7 @@ import type { ImportResult } from "./validation";
 
 const KEY_SETTINGS = "jd_settings";
 const KEY_USAGE = "jd_usage";
+const KEY_TEMPTATIONS = "jd_temptations";
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -177,6 +179,45 @@ export async function resetAllUsage(): Promise<void> {
   await setUsage({});
 }
 
+// ─── Temptations ──────────────────────────────────────────────────────────────
+
+/**
+ * Read the full temptation map from storage.
+ *
+ * Returns an empty map if absent or invalid.
+ */
+export async function getTemptations(): Promise<TemptationMap> {
+  const result = await storageGet<unknown>(KEY_TEMPTATIONS);
+  const raw = result[KEY_TEMPTATIONS];
+
+  if (raw === undefined || raw === null) {
+    return {};
+  }
+
+  const parsed = temptationMapSchema.safeParse(raw);
+  if (!parsed.success) {
+    // eslint-disable-next-line no-console
+    console.warn("[JustDetox] Temptation data validation failed — resetting.\n", parsed.error.format());
+    return {};
+  }
+
+  return parsed.data as TemptationMap;
+}
+
+/** Persist the full temptation map. */
+export async function setTemptations(temptations: TemptationMap): Promise<void> {
+  await storageSet({ [KEY_TEMPTATIONS]: temptations });
+}
+
+/**
+ * Reset all temptation counts.
+ *
+ * Called when the global usage window resets.
+ */
+export async function resetAllTemptations(): Promise<void> {
+  await setTemptations({});
+}
+
 // ─── Export / Import ──────────────────────────────────────────────────────────
 
 /**
@@ -186,12 +227,17 @@ export async function resetAllUsage(): Promise<void> {
  * The caller is responsible for triggering the browser download.
  */
 export async function exportAll(): Promise<string> {
-  const [settings, usage] = await Promise.all([getSettings(), getUsage()]);
+  const [settings, usage, temptations] = await Promise.all([
+    getSettings(),
+    getUsage(),
+    getTemptations(),
+  ]);
 
   const payload: FullExport = {
     exportedAt: new Date().toISOString(),
     settings,
     usage,
+    temptations,
   };
 
   return JSON.stringify(payload, null, 2);
@@ -224,6 +270,7 @@ export async function importAll(json: string): Promise<ImportResult> {
   await Promise.all([
     setSettings(validated.data.settings as Settings),
     setUsage((validated.data.usage ?? {}) as UsageMap),
+    setTemptations((validated.data.temptations ?? {}) as TemptationMap),
   ]);
 
   return { ok: true, data: validated.data };

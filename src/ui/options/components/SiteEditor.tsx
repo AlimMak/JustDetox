@@ -10,6 +10,8 @@ interface SiteEditorProps {
   rule: SiteRule | null; // null = create new
   onSave: (rule: SiteRule) => void;
   onClose: () => void;
+  /** Temptation attempts for this domain in the current window. */
+  attemptCount?: number;
 }
 
 interface FormErrors {
@@ -17,7 +19,7 @@ interface FormErrors {
   limitMinutes?: string;
 }
 
-export function SiteEditor({ rule, onSave, onClose }: SiteEditorProps) {
+export function SiteEditor({ rule, onSave, onClose, attemptCount }: SiteEditorProps) {
   const isNew = rule === null;
   const [domain, setDomain] = useState(rule?.domain ?? "");
   const [mode, setMode] = useState<RuleMode>(rule?.mode ?? "block");
@@ -165,6 +167,15 @@ export function SiteEditor({ rule, onSave, onClose }: SiteEditorProps) {
           <span className="toggle__track"><span className="toggle__thumb" /></span>
         </label>
       </div>
+
+      {/* Temptation stat — only shown when editing an existing rule */}
+      {!isNew && typeof attemptCount === "number" && (
+        <p className="field__hint" style={{ marginTop: "var(--sp-2)" }}>
+          {attemptCount === 0
+            ? "No blocked attempts recorded this window."
+            : `${attemptCount} blocked ${attemptCount === 1 ? "attempt" : "attempts"} this window.`}
+        </p>
+      )}
     </Modal>
   );
 }

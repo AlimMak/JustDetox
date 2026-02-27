@@ -1,7 +1,8 @@
 // FILE: src/ui/options/components/SitesPanel.tsx
 
-import { useState } from "react";
-import type { Settings, SiteRule } from "../../../core/types";
+import { useEffect, useState } from "react";
+import type { Settings, SiteRule, TemptationMap } from "../../../core/types";
+import { getTemptations } from "../../../core/storage";
 import { SiteEditor } from "./SiteEditor";
 import { useFriction } from "../context/FrictionContext";
 
@@ -13,7 +14,12 @@ interface SitesPanelProps {
 export function SitesPanel({ settings, patch }: SitesPanelProps) {
   const [editing, setEditing] = useState<SiteRule | null | "new">(null);
   const [search, setSearch] = useState("");
+  const [temptations, setTemptationMap] = useState<TemptationMap>({});
   const { askFriction } = useFriction();
+
+  useEffect(() => {
+    getTemptations().then(setTemptationMap).catch(() => {});
+  }, []);
 
   const saveRule = (saved: SiteRule) => {
     const exists = settings.siteRules.some((r) => r.domain === saved.domain);
@@ -144,6 +150,9 @@ export function SitesPanel({ settings, patch }: SitesPanelProps) {
           rule={editing === "new" ? null : editing}
           onSave={saveRule}
           onClose={() => setEditing(null)}
+          attemptCount={
+            editing !== "new" ? (temptations[editing.domain]?.attempts ?? 0) : undefined
+          }
         />
       )}
     </div>

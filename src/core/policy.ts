@@ -62,6 +62,8 @@ export interface BlockedState {
   mode?: RuleMode;
   /** Seconds remaining in the current window; set only for limit-mode rules. */
   remainingSeconds?: number;
+  /** True when the block was caused by Locked In Mode (domain not in session allow-list). */
+  lockedIn?: boolean;
 }
 
 // ─── resolveEffectivePolicy ───────────────────────────────────────────────────
@@ -160,7 +162,7 @@ export function computeBlockedState(
 
     if (!isAllowed) {
       // Domain is not in the session's allowed list — block unconditionally.
-      return { blocked: true, message: MSG_LOCKED_IN, mode: "block" };
+      return { blocked: true, message: MSG_LOCKED_IN, mode: "block", lockedIn: true };
     }
 
     // Domain is in the allowed list — grant access, bypassing all other rules.

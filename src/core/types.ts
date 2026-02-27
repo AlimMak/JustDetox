@@ -160,6 +160,29 @@ export interface DomainUsage {
 /** Full usage map — keyed by sanitized domain hostname. */
 export type UsageMap = Record<string, DomainUsage>;
 
+// ─── Temptation tracking ──────────────────────────────────────────────────────
+
+/**
+ * Counts how many times a user attempted to access a blocked domain
+ * within the current reset window.
+ *
+ * Attempts are debounced: multiple triggers within 3 s count as one.
+ * `lockedInAttempts` tracks attempts that occurred during a Locked In session.
+ */
+export interface TemptationRecord {
+  /** Total blocked-overlay triggers (debounced) this window. */
+  attempts: number;
+  /** Unix ms timestamp of the last recorded attempt. */
+  lastAttemptTs: number;
+  /** Subset of `attempts` that occurred during a Locked In session. */
+  lockedInAttempts: number;
+  /** Timestamp when the current window started (unix ms). */
+  windowStartTs: number;
+}
+
+/** Full temptation map — keyed by sanitized domain hostname. */
+export type TemptationMap = Record<string, TemptationRecord>;
+
 // ─── Export / Import container ────────────────────────────────────────────────
 
 /** Shape of a JSON backup produced by `exportAll()`. */
@@ -168,6 +191,7 @@ export interface FullExport {
   exportedAt: string;
   settings: Settings;
   usage: UsageMap;
+  temptations?: TemptationMap;
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ interface DashboardPanelProps {
 }
 
 export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPanelProps) {
-  const { domainStats, groupStats, totalSeconds, loading, refresh } =
+  const { domainStats, groupStats, temptationStats, totalSeconds, loading, refresh } =
     useDashboard(settings);
   const { askFriction } = useFriction();
 
@@ -117,6 +117,35 @@ export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPan
         )}
       </section>
 
+      {/* Most tempting sites */}
+      {!loading && temptationStats.length > 0 && (
+        <section className="panel-section">
+          <p className="section-heading">Most tempting sites</p>
+          <p style={{ color: "var(--text-3)", fontSize: "var(--text-sm)", marginBottom: "var(--sp-3)" }}>
+            Sites you tried to open the most this window.
+          </p>
+          <div className="rule-card-list">
+            {temptationStats.map((t, i) => (
+              <div key={t.hostname} className="list-row">
+                <div className="list-row__main">
+                  <span className="list-row__title" style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-sm)" }}>
+                    {i + 1}. {t.hostname}
+                  </span>
+                  {t.lockedInAttempts > 0 && (
+                    <span className="list-row__sub">
+                      {t.lockedInAttempts} during Locked In
+                    </span>
+                  )}
+                </div>
+                <span style={{ color: "var(--text-2)", fontSize: "var(--text-sm)", fontVariantNumeric: "tabular-nums" }}>
+                  {t.attempts} {t.attempts === 1 ? "attempt" : "attempts"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Groups summary — only if groups exist */}
       {settings.groups.length > 0 && (
         <section className="panel-section">
@@ -128,10 +157,14 @@ export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPan
               items={groupStats.map((g) => ({
                 label: g.name,
                 value: g.activeSeconds,
-                sublabel:
+                sublabel: [
                   g.mode === "limit"
                     ? `${g.domainCount} domain${g.domainCount !== 1 ? "s" : ""} · ${settings.groups.find((x) => x.id === g.groupId)?.limitMinutes ?? 0}min limit`
                     : `${g.domainCount} domain${g.domainCount !== 1 ? "s" : ""} · blocked`,
+                  g.totalAttempts > 0
+                    ? `${g.totalAttempts} temptation${g.totalAttempts !== 1 ? "s" : ""}`
+                    : "",
+                ].filter(Boolean).join(" · "),
               }))}
               emptyMessage="No group usage this window."
             />
