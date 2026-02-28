@@ -57,11 +57,21 @@ export function GroupEditor({ group, onSave, onClose }: GroupEditorProps) {
       enabled,
     };
 
-    // Friction checks only apply when editing an existing group, not creating.
+    // Gate checks only apply when editing an existing group, not creating.
     if (!isNew && group !== null) {
       const wasBlock = group.mode === "block";
       const newLimitMins = parseInt(limitMinutes, 10);
       const oldLimitMins = group.limitMinutes ?? 0;
+
+      // Domain removal: detect domains present in the original but missing now.
+      const removedDomains = group.domains.filter((d) => !domains.includes(d));
+      if (removedDomains.length > 0) {
+        const ok = await askFriction({
+          actionType: "remove-domain",
+          label: `${saved.name} — remove ${removedDomains.join(", ")}`,
+        });
+        if (!ok) return;
+      }
 
       if (wasBlock && mode === "limit") {
         const ok = await askFriction({

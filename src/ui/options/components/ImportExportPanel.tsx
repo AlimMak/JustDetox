@@ -5,6 +5,8 @@ import type { Settings } from "../../../core/types";
 import { exportAll, getSettings, importAll } from "../../../core/storage";
 import { parseImportJson } from "../../../core/validation";
 import type { ValidatedFullExport } from "../../../core/validation";
+import { computeImportDiff } from "../../../core/protectedGate";
+import { useFriction } from "../context/FrictionContext";
 
 interface ImportExportPanelProps {
   settings: Settings;

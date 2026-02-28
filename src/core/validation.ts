@@ -129,6 +129,16 @@ export const frictionSettingsSchema = z.object({
   logReflections: z.boolean().default(true),
 });
 
+export const protectedGateSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** 15–300 seconds. */
+  cooldownSeconds: z.number().int().min(15).max(300).default(60),
+  /** Confirmation phrase, max 20 chars. */
+  phrase: z.string().min(1).max(20).default("LOCK IN"),
+  requirePhrase: z.boolean().default(true),
+  requireCooldown: z.boolean().default(true),
+});
+
 export const settingsSchema = z.object({
   version: z.number().int().min(1).default(SETTINGS_VERSION),
   disabled: z.boolean().default(false),
@@ -143,6 +153,13 @@ export const settingsSchema = z.object({
     logReflections: true,
   }),
   lockedInSession: lockedInSessionSchema,
+  protectedGate: protectedGateSchema.default({
+    enabled: true,
+    cooldownSeconds: 60,
+    phrase: "LOCK IN",
+    requirePhrase: true,
+    requireCooldown: true,
+  }),
 });
 
 // ─── Usage ────────────────────────────────────────────────────────────────────

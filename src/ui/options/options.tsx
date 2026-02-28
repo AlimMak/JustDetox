@@ -9,6 +9,7 @@ import { useSettings } from "./hooks/useSettings";
 import { useFrictionGate } from "./hooks/useFrictionGate";
 import { FrictionContext } from "./context/FrictionContext";
 import { FrictionGate } from "../components/FrictionGate";
+import { ProtectedGate } from "../components/ProtectedGate";
 import { Sidebar, resolveInitialSection, type Section } from "./components/Sidebar";
 import { DashboardPanel } from "./components/DashboardPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -24,6 +25,7 @@ function Options() {
   const { settings, loading, patch } = useSettings();
   const { askFriction, gateState, gateHandlers } = useFrictionGate(
     settings.friction,
+    settings.protectedGate,
   );
 
   const lockedInActive = Boolean(
@@ -70,8 +72,8 @@ function Options() {
         </main>
       </div>
 
-      {/* Friction Gate renders above everything when active */}
-      {gateState && (
+      {/* Gate renders above everything when active — kind determines which modal */}
+      {gateState && gateState.kind === "friction" && (
         <FrictionGate
           payload={gateState.payload}
           countdownStartTs={gateState.countdownStartTs}
@@ -79,6 +81,15 @@ function Options() {
           requireReflection={gateState.requireReflection}
           onApply={gateHandlers.onApply}
           onKeep={gateHandlers.onKeep}
+        />
+      )}
+      {gateState && gateState.kind === "protected" && (
+        <ProtectedGate
+          payload={gateState.payload}
+          countdownStartTs={gateState.countdownStartTs}
+          gate={settings.protectedGate}
+          onApply={gateHandlers.onApplyProtected}
+          onCancel={gateHandlers.onKeep}
         />
       )}
     </FrictionContext.Provider>

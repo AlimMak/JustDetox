@@ -23,7 +23,9 @@ export type FrictionActionType =
   | "disable-site-rule"
   | "disable-group"
   | "rule-limit-increase"
-  | "group-limit-increase";
+  | "group-limit-increase"
+  | "remove-domain"
+  | "import-reduces-protection";
 
 // ─── Payload ──────────────────────────────────────────────────────────────────
 
@@ -44,6 +46,11 @@ export interface FrictionPayload {
    * current usage seconds from storage to display as context.
    */
   domain?: string;
+  /**
+   * Optional list of additional context lines shown in the Protected Gate.
+   * Used by the import flow to enumerate every protection reduction.
+   */
+  context?: string[];
 }
 
 // ─── Log entries ──────────────────────────────────────────────────────────────
@@ -119,7 +126,9 @@ export function describeActionType(actionType: FrictionActionType): string {
     case "group-block-to-limit": return "Change group from block → time limit";
     case "disable-site-rule":    return "Disable a site rule";
     case "disable-group":        return "Disable a group";
-    case "rule-limit-increase":  return "Increase a time limit";
-    case "group-limit-increase": return "Increase a time limit";
+    case "rule-limit-increase":         return "Increase a time limit";
+    case "group-limit-increase":        return "Increase a time limit";
+    case "remove-domain":               return "Remove a domain from a rule";
+    case "import-reduces-protection":   return "Import settings that reduce protection";
   }
 }

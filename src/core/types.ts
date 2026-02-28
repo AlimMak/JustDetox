@@ -115,6 +115,35 @@ export interface FrictionSettings {
   logReflections: boolean;
 }
 
+// ─── Protected Settings Gate ──────────────────────────────────────────────────
+
+/**
+ * Configuration for the Protected Settings Gate — a stricter barrier than
+ * the Friction Layer, requiring a timed cooldown and a typed phrase to confirm
+ * any change that reduces protection.
+ *
+ * When enabled, the Protected Gate supersedes the Friction Layer for all
+ * covered protective actions.
+ */
+export interface ProtectedGateSettings {
+  /** Master toggle. When false all gate checks pass through instantly. */
+  enabled: boolean;
+  /**
+   * Seconds the user must wait before "Apply change" becomes clickable.
+   * Clamped to 15–300. Default: 60.
+   */
+  cooldownSeconds: number;
+  /**
+   * Exact phrase the user must type to confirm (case-insensitive).
+   * Max 20 characters. Default: "LOCK IN".
+   */
+  phrase: string;
+  /** When true the phrase input must match before Apply is enabled. */
+  requirePhrase: boolean;
+  /** When true the cooldown must elapse before Apply is enabled. */
+  requireCooldown: boolean;
+}
+
 /** Top-level user settings persisted in chrome.storage.local. */
 export interface Settings {
   /** Schema version — used for future migrations. */
@@ -137,6 +166,8 @@ export interface Settings {
   friction: FrictionSettings;
   /** Active Locked In Mode session, if any. Absent when no session has ever been started. */
   lockedInSession?: LockedInSession;
+  /** Protected Settings Gate configuration. */
+  protectedGate: ProtectedGateSettings;
 }
 
 // ─── Usage ────────────────────────────────────────────────────────────────────
@@ -208,6 +239,14 @@ export const DEFAULT_FRICTION_SETTINGS: FrictionSettings = {
   logReflections: true,
 };
 
+export const DEFAULT_PROTECTED_GATE: ProtectedGateSettings = {
+  enabled: true,
+  cooldownSeconds: 60,
+  phrase: "LOCK IN",
+  requirePhrase: true,
+  requireCooldown: true,
+};
+
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
   disabled: false,
@@ -216,4 +255,5 @@ export const DEFAULT_SETTINGS: Settings = {
   globalBlockList: [],
   resetWindow: { ...DEFAULT_RESET_WINDOW },
   friction: { ...DEFAULT_FRICTION_SETTINGS },
+  protectedGate: { ...DEFAULT_PROTECTED_GATE },
 };
