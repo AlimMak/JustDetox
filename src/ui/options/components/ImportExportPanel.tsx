@@ -18,9 +18,12 @@ type ExportMode = "settings" | "full";
 interface ImportPreview {
   json: string;
   data: ValidatedFullExport;
+  /** Non-empty when the import reduces protection relative to current settings. */
+  reductions: string[];
 }
 
 export function ImportExportPanel({ patch }: ImportExportPanelProps) {
+  const { askFriction } = useFriction();
   const fileRef = useRef<HTMLInputElement>(null);
   const [exportMode, setExportMode] = useState<ExportMode>("settings");
   const [exporting, setExporting] = useState(false);
@@ -75,7 +78,13 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
     if (!result.ok) {
       setImportError(result.error);
     } else {
-      setPreview({ json: text, data: result.data });
+      // Compute protection diff relative to current settings.
+      const current = await getSettings();
+      const diff = computeImportDiff(
+        current,
+        result.data.settings as Settings,
+      );
+      setPreview({ json: text, data: result.data, reductions: diff.reductions });
     }
 
     if (fileRef.current) fileRef.current.value = "";
@@ -83,6 +92,17 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
 
   const handleApply = async () => {
     if (!preview) return;
+
+    // If the import reduces protection, require gate confirmation.
+    if (preview.reductions.length > 0) {
+      const ok = await askFriction({
+        actionType: "import-reduces-protection",
+        label: `Import — ${preview.reductions.length} protection reduction${preview.reductions.length !== 1 ? "s" : ""}`,
+        context: preview.reductions,
+      });
+      if (!ok) return;
+    }
+
     setApplying(true);
     try {
       const result = await importAll(preview.json);
@@ -225,6 +245,20 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
               <div className="about-row">
                 <span className="about-label">Usage entries</span>
                 <span className="about-value">{usageCount}</span>
+              </div>
+            )}
+            {preview.reductions.length > 0 && (
+              <div className="about-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "var(--sp-2)" }}>
+                <span style={{ fontSize: "var(--text-xs)", fontWeight: "var(--weight-semi)", color: "var(--text-2)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  Protection reductions
+                </span>
+                <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--sp-1)" }}>
+                  {preview.reductions.map((r, i) => (
+                    <li key={i} style={{ fontSize: "var(--text-xs)", color: "var(--text-3)", paddingLeft: "var(--sp-3)", position: "relative" }}>
+                      <span style={{ position: "absolute", left: 0 }}>·</span>{r}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
             <div className="about-row" style={{ gap: "var(--sp-3)" }}>
