@@ -4,18 +4,20 @@
  * Runs at document_start on every page.
  *
  * Responsibilities:
- *  1. Ask the background whether the current hostname is blocked.
- *  2. Mount a full-screen overlay if blocked; unmount it if not.
- *  3. Re-check on every SPA navigation (YouTube, Twitter, etc.) by
+ *  1. Ask the background whether the current hostname is blocked or delayed.
+ *  2. Mount a full-screen block overlay if blocked; unmount it if not.
+ *  3. Mount a full-screen delay overlay with a countdown when delayed;
+ *     after the countdown, re-check and either allow access or block.
+ *  4. Re-check on every SPA navigation (YouTube, Twitter, etc.) by
  *     patching the history API before page scripts load.
- *  4. For time-limited sites: schedule a re-check exactly when the
+ *  5. For time-limited sites: schedule a re-check exactly when the
  *     remaining quota expires so the overlay appears without polling.
  *
  * Design constraints:
  *  - No external stylesheet (inline styles only → no CSP issues, no
  *    extra network requests, no stylesheet flash).
  *  - No redirect — overlay covers the page in-place.
- *  - No bypass controls (no close/snooze/allow buttons).
+ *  - No bypass controls (no close/snooze/allow buttons, no skip on delay).
  *  - Time tracking is handled entirely by tracker.ts in the service
  *    worker; this script sends no RECORD_TIME messages.
  */
@@ -25,6 +27,7 @@ import type { CheckUrlMessage, CheckUrlResponse } from "../shared/messages";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const OVERLAY_ID = "justdetox-overlay";
+const DELAY_OVERLAY_ID = "justdetox-delay-overlay";
 
 /**
  * Extra buffer added to the scheduled re-check timer to account for clock
@@ -32,10 +35,28 @@ const OVERLAY_ID = "justdetox-overlay";
  */
 const RECHECK_BUFFER_MS = 2_000;
 
-// ─── Overlay DOM ──────────────────────────────────────────────────────────────
+// ─── Shared styles ────────────────────────────────────────────────────────────
+
+const BASE_OVERLAY_STYLE: Partial<CSSStyleDeclaration> = {
+  position: "fixed",
+  inset: "0",
+  zIndex: "2147483647",
+  background: "#0a0a0a",
+  color: "#e5e5e5",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  fontFamily: "Inter, system-ui, -apple-system, sans-serif",
+  pointerEvents: "all",
+  userSelect: "none",
+  webkitUserSelect: "none",
+};
+
+// ─── Block overlay DOM ────────────────────────────────────────────────────────
 
 /**
- * Inject the overlay with the given block message.
+ * Inject the block overlay with the given block message.
  * Idempotent — calling a second time before unmounting is a no-op.
  */
 function mountOverlay(message: string): void {
@@ -43,24 +64,7 @@ function mountOverlay(message: string): void {
 
   const overlay = document.createElement("div");
   overlay.id = OVERLAY_ID;
-
-  // Inline styles only. position:fixed + max z-index covers the viewport.
-  // pointer-events:all captures every click/touch so nothing bleeds through.
-  Object.assign(overlay.style, {
-    position: "fixed",
-    inset: "0",
-    zIndex: "2147483647",
-    background: "#0a0a0a",
-    color: "#e5e5e5",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    fontFamily: "Inter, system-ui, -apple-system, sans-serif",
-    pointerEvents: "all",
-    userSelect: "none",
-    WebkitUserSelect: "none",
-  });
+  Object.assign(overlay.style, BASE_OVERLAY_STYLE);
 
   const msg = document.createElement("p");
   msg.textContent = message;
@@ -76,32 +80,120 @@ function mountOverlay(message: string): void {
   });
 
   overlay.appendChild(msg);
-
-  // Intercept every interaction at the capture phase so they never reach
-  // the underlying page. passive:false lets us call preventDefault().
-  const block = (e: Event) => {
-    e.stopPropagation();
-    e.preventDefault();
-  };
-  overlay.addEventListener("click", block, true);
-  overlay.addEventListener("contextmenu", block, true);
-  overlay.addEventListener("keydown", block, true);
-  overlay.addEventListener("keyup", block, true);
-  overlay.addEventListener("wheel", block, { capture: true, passive: false });
-  overlay.addEventListener("touchmove", block, { capture: true, passive: false });
-  overlay.addEventListener("touchstart", block, { capture: true, passive: false });
-
-  // Attach to <html> — available at document_start even before <body> is parsed.
+  attachInteractionBlock(overlay);
   document.documentElement.appendChild(overlay);
-
-  // Prevent page scroll. If <body> isn't ready yet, apply when it appears.
   applyScrollLock();
 }
 
 function unmountOverlay(): void {
   document.getElementById(OVERLAY_ID)?.remove();
-  document.documentElement.style.overflow = "";
-  if (document.body) document.body.style.overflow = "";
+  if (!document.getElementById(DELAY_OVERLAY_ID)) releaseScrollLock();
+}
+
+// ─── Delay overlay DOM ────────────────────────────────────────────────────────
+
+let delayTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Mount the delay overlay and count down from `seconds`.
+ * After the countdown reaches zero the overlay is removed and
+ * `checkCurrentUrl()` is called with `justCompletedDelay = true`
+ * so it does not re-enter the delay loop.
+ *
+ * Idempotent — any existing delay overlay (and its timer) is replaced.
+ */
+function mountDelayOverlay(hostname: string, seconds: number): void {
+  unmountDelayOverlay();
+
+  const overlay = document.createElement("div");
+  overlay.id = DELAY_OVERLAY_ID;
+  Object.assign(overlay.style, BASE_OVERLAY_STYLE);
+
+  // Site hostname (small, muted)
+  const siteLabel = document.createElement("p");
+  siteLabel.textContent = hostname;
+  Object.assign(siteLabel.style, {
+    margin: "0 0 24px",
+    fontSize: "0.8rem",
+    fontWeight: "400",
+    letterSpacing: "0.08em",
+    color: "#6b7280",
+    textTransform: "lowercase",
+  });
+
+  // Countdown number (large, monospace)
+  const countEl = document.createElement("p");
+  countEl.textContent = String(seconds);
+  Object.assign(countEl.style, {
+    margin: "0 0 20px",
+    fontSize: "3.5rem",
+    fontWeight: "300",
+    fontVariantNumeric: "tabular-nums",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    color: "#e5e5e5",
+    letterSpacing: "-0.02em",
+    lineHeight: "1",
+  });
+
+  // Subtitle
+  const subtitle = document.createElement("p");
+  subtitle.textContent = "Pause before you proceed.";
+  Object.assign(subtitle.style, {
+    margin: "0",
+    fontSize: "0.75rem",
+    fontWeight: "400",
+    color: "#6b7280",
+    letterSpacing: "0.04em",
+  });
+
+  overlay.appendChild(siteLabel);
+  overlay.appendChild(countEl);
+  overlay.appendChild(subtitle);
+  attachInteractionBlock(overlay);
+  document.documentElement.appendChild(overlay);
+  applyScrollLock();
+
+  let remaining = seconds;
+
+  delayTimer = setInterval(() => {
+    remaining--;
+    countEl.textContent = String(remaining);
+
+    if (remaining <= 0) {
+      clearInterval(delayTimer!);
+      delayTimer = null;
+      unmountDelayOverlay();
+      // Re-check with the flag set so we don't re-enter the delay loop.
+      justCompletedDelay = true;
+      checkCurrentUrl();
+    }
+  }, 1_000);
+}
+
+function unmountDelayOverlay(): void {
+  if (delayTimer !== null) {
+    clearInterval(delayTimer);
+    delayTimer = null;
+  }
+  document.getElementById(DELAY_OVERLAY_ID)?.remove();
+  if (!document.getElementById(OVERLAY_ID)) releaseScrollLock();
+}
+
+// ─── Shared helpers ────────────────────────────────────────────────────────────
+
+/** Attach capture-phase handlers to prevent all interaction through the overlay. */
+function attachInteractionBlock(el: HTMLElement): void {
+  const block = (e: Event) => {
+    e.stopPropagation();
+    e.preventDefault();
+  };
+  el.addEventListener("click", block, true);
+  el.addEventListener("contextmenu", block, true);
+  el.addEventListener("keydown", block, true);
+  el.addEventListener("keyup", block, true);
+  el.addEventListener("wheel", block, { capture: true, passive: false });
+  el.addEventListener("touchmove", block, { capture: true, passive: false });
+  el.addEventListener("touchstart", block, { capture: true, passive: false });
 }
 
 function applyScrollLock(): void {
@@ -120,12 +212,26 @@ function applyScrollLock(): void {
   }
 }
 
+function releaseScrollLock(): void {
+  document.documentElement.style.overflow = "";
+  if (document.body) document.body.style.overflow = "";
+}
+
 // ─── State ────────────────────────────────────────────────────────────────────
 
 let currentHostname: string = location.hostname;
 let isOverlayVisible: boolean = false;
+let isDelayOverlayVisible: boolean = false;
 let checkInFlight: boolean = false;
 let nextCheckTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Set to true by the delay timer callback before calling checkCurrentUrl().
+ * When true, a `delayed` response is treated as "allow through" rather than
+ * starting another countdown — preventing an infinite delay loop.
+ * Cleared on each use.
+ */
+let justCompletedDelay: boolean = false;
 
 // ─── Background communication ─────────────────────────────────────────────────
 
@@ -155,19 +261,39 @@ async function checkCurrentUrl(): Promise<void> {
 
   if (!response) return;
 
-  if (response.blocked && response.message) {
-    isOverlayVisible = true;
-    mountOverlay(response.message);
-  } else {
+  // ── Delay Mode ──────────────────────────────────────────────────────────────
+  if (response.delayed && response.delaySeconds && !justCompletedDelay) {
+    // Site is accessible but requires a countdown first.
+    isDelayOverlayVisible = true;
     isOverlayVisible = false;
     unmountOverlay();
+    mountDelayOverlay(hostname, response.delaySeconds);
+    return;
+  }
 
-    // For time-limited sites: schedule a re-check at the moment the quota
-    // expires, so the overlay appears without needing the user to navigate.
-    if (response.mode === "time-limit" && (response.remainingSeconds ?? 0) > 0) {
-      const delayMs = (response.remainingSeconds! + RECHECK_BUFFER_MS / 1_000) * 1_000;
-      nextCheckTimer = setTimeout(checkCurrentUrl, delayMs);
-    }
+  // Clear the one-shot flag after any non-delay-triggering check.
+  justCompletedDelay = false;
+
+  // ── Block overlay ───────────────────────────────────────────────────────────
+  if (response.blocked && response.message) {
+    isDelayOverlayVisible = false;
+    isOverlayVisible = true;
+    unmountDelayOverlay();
+    mountOverlay(response.message);
+    return;
+  }
+
+  // ── Access allowed ──────────────────────────────────────────────────────────
+  isDelayOverlayVisible = false;
+  isOverlayVisible = false;
+  unmountDelayOverlay();
+  unmountOverlay();
+
+  // For time-limited sites: schedule a re-check at the moment the quota
+  // expires, so the overlay appears without needing the user to navigate.
+  if (response.mode === "time-limit" && (response.remainingSeconds ?? 0) > 0) {
+    const delayMs = (response.remainingSeconds! + RECHECK_BUFFER_MS / 1_000) * 1_000;
+    nextCheckTimer = setTimeout(checkCurrentUrl, delayMs);
   }
 }
 
@@ -176,12 +302,11 @@ async function checkCurrentUrl(): Promise<void> {
 function onUrlChange(): void {
   const newHostname = location.hostname;
 
-  // Always re-check when:
-  //  a) the hostname changed (cross-origin SPA nav is impossible, but
-  //     re-checking keeps the logic simple and future-proof), OR
-  //  b) the overlay is visible (navigating away from the current path on a
-  //     blocked domain should re-validate in case path-based rules are added).
-  if (newHostname !== currentHostname || isOverlayVisible) {
+  // Re-check when:
+  //  a) the hostname changed, OR
+  //  b) either overlay is visible (navigating on a blocked/delayed domain
+  //     should re-validate).
+  if (newHostname !== currentHostname || isOverlayVisible || isDelayOverlayVisible) {
     currentHostname = newHostname;
     checkCurrentUrl();
   }
@@ -220,5 +345,5 @@ checkCurrentUrl();
 // Also check at DOMContentLoaded to catch cases where the initial check
 // failed because the extension context wasn't ready yet.
 document.addEventListener("DOMContentLoaded", () => {
-  if (!isOverlayVisible) checkCurrentUrl();
+  if (!isOverlayVisible && !isDelayOverlayVisible) checkCurrentUrl();
 }, { once: true });

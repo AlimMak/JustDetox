@@ -61,5 +61,7 @@ async function handleCheckUrl(hostname: string): Promise<CheckUrlResponse> {
     mode: state.mode === "limit" ? "time-limit" : state.mode,
     remainingSeconds: state.remainingSeconds,
     message: state.message,
+    delayed: state.delayed,
+    delaySeconds: state.delaySeconds,
   };
 }

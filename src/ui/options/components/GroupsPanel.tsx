@@ -123,6 +123,7 @@ export function GroupsPanel({ settings, patch }: GroupsPanelProps) {
           group={editing === "new" ? null : editing}
           onSave={saveGroup}
           onClose={() => setEditing(null)}
+          defaultDelaySeconds={settings.defaultDelaySeconds}
         />
       )}
     </div>

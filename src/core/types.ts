@@ -31,6 +31,10 @@ export interface SiteRule {
   /** Required when mode === "limit". Minutes allowed per reset window. */
   limitMinutes?: number;
   enabled: boolean;
+  /** When true, visiting this site shows a countdown before allowing access. Only effective when mode === "limit" and time remains. */
+  delayEnabled?: boolean;
+  /** Countdown duration in seconds (5–60). Defaults to the global defaultDelaySeconds when not set. */
+  delaySeconds?: number;
 }
 
 // ─── Groups ───────────────────────────────────────────────────────────────────
@@ -50,6 +54,10 @@ export interface SiteGroup {
   /** Required when mode === "limit". Shared minutes per reset window. */
   limitMinutes?: number;
   enabled: boolean;
+  /** When true, visiting any domain in this group shows a countdown before allowing access. Only effective when mode === "limit" and time remains. */
+  delayEnabled?: boolean;
+  /** Countdown duration in seconds (5–60). Defaults to the global defaultDelaySeconds when not set. */
+  delaySeconds?: number;
 }
 
 // ─── Global settings ──────────────────────────────────────────────────────────
@@ -168,6 +176,12 @@ export interface Settings {
   lockedInSession?: LockedInSession;
   /** Protected Settings Gate configuration. */
   protectedGate: ProtectedGateSettings;
+  /**
+   * Default delay duration (seconds) used when adding a new site rule or group
+   * with Delay Mode enabled but no explicit delaySeconds set.
+   * Range: 5–60. Default: 15.
+   */
+  defaultDelaySeconds: number;
 }
 
 // ─── Usage ────────────────────────────────────────────────────────────────────
@@ -256,4 +270,5 @@ export const DEFAULT_SETTINGS: Settings = {
   resetWindow: { ...DEFAULT_RESET_WINDOW },
   friction: { ...DEFAULT_FRICTION_SETTINGS },
   protectedGate: { ...DEFAULT_PROTECTED_GATE },
+  defaultDelaySeconds: 15,
 };

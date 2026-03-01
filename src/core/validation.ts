@@ -77,6 +77,8 @@ export const siteRuleSchema = z
     mode: ruleModeSchema,
     limitMinutes: limitMinutesSchema.optional(),
     enabled: z.boolean().default(true),
+    delayEnabled: z.boolean().optional(),
+    delaySeconds: z.number().int().min(5).max(60).optional(),
   })
   .refine((r) => r.mode !== "limit" || r.limitMinutes !== undefined, {
     message: "limitMinutes is required when mode is 'limit'",
@@ -93,6 +95,8 @@ export const siteGroupSchema = z
     mode: ruleModeSchema,
     limitMinutes: limitMinutesSchema.optional(),
     enabled: z.boolean().default(true),
+    delayEnabled: z.boolean().optional(),
+    delaySeconds: z.number().int().min(5).max(60).optional(),
   })
   .refine((g) => g.mode !== "limit" || g.limitMinutes !== undefined, {
     message: "limitMinutes is required when mode is 'limit'",
@@ -160,6 +164,7 @@ export const settingsSchema = z.object({
     requirePhrase: true,
     requireCooldown: true,
   }),
+  defaultDelaySeconds: z.number().int().min(5).max(60).default(15),
 });
 
 // ─── Usage ────────────────────────────────────────────────────────────────────

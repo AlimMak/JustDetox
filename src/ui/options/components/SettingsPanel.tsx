@@ -236,6 +236,23 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
       <section className="panel-section">
         <p className="section-heading">Behavior</p>
 
+        {/* Default delay seconds */}
+        <div className="field" style={{ maxWidth: 200, marginBottom: "var(--sp-4)" }}>
+          <span className="field__label">Default delay for new sites (seconds)</span>
+          <input
+            className="input"
+            type="number"
+            min={5}
+            max={60}
+            value={settings.defaultDelaySeconds}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              if (!isNaN(v) && v >= 5 && v <= 60) patch({ defaultDelaySeconds: v });
+            }}
+          />
+          <p className="field__hint">5–60 seconds. Used when enabling Delay Mode on a new site or group.</p>
+        </div>
+
         {/* Enable Friction Layer */}
         <div
           className="field"

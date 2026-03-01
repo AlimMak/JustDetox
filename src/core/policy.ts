@@ -53,6 +53,10 @@ export interface EffectivePolicy {
   configuredDomain?: string;
   /** The group.id when reason === "group". */
   groupId?: string;
+  /** Whether Delay Mode is enabled on the matching rule/group. */
+  delayEnabled?: boolean;
+  /** Countdown duration in seconds. Only meaningful when delayEnabled is true. */
+  delaySeconds?: number;
 }
 
 export interface BlockedState {
@@ -64,6 +68,10 @@ export interface BlockedState {
   remainingSeconds?: number;
   /** True when the block was caused by Locked In Mode (domain not in session allow-list). */
   lockedIn?: boolean;
+  /** True when the site is accessible but Delay Mode requires a countdown first. */
+  delayed?: boolean;
+  /** Countdown duration in seconds; set only when delayed === true. */
+  delaySeconds?: number;
 }
 
 // ─── resolveEffectivePolicy ───────────────────────────────────────────────────
@@ -96,6 +104,8 @@ export function resolveEffectivePolicy(
       limitSeconds: rule.mode === "limit" ? (rule.limitMinutes ?? 0) * 60 : undefined,
       reason: "site-rule",
       configuredDomain: rule.domain,
+      delayEnabled: rule.delayEnabled,
+      delaySeconds: rule.delaySeconds ?? settings.defaultDelaySeconds,
     };
   }
 
@@ -109,6 +119,8 @@ export function resolveEffectivePolicy(
       limitSeconds: group.mode === "limit" ? (group.limitMinutes ?? 0) * 60 : undefined,
       reason: "group",
       groupId: group.id,
+      delayEnabled: group.delayEnabled,
+      delaySeconds: group.delaySeconds ?? settings.defaultDelaySeconds,
     };
   }
 
@@ -184,6 +196,17 @@ export function computeBlockedState(
 
   if (remaining <= 0) {
     return { blocked: true, message: MSG_TIME_UP, mode: "limit", remainingSeconds: 0 };
+  }
+
+  // Delay Mode: show countdown before granting access (block-mode sites are never delayed).
+  if (policy.delayEnabled) {
+    return {
+      blocked: false,
+      mode: "limit",
+      remainingSeconds: remaining,
+      delayed: true,
+      delaySeconds: policy.delaySeconds ?? 15,
+    };
   }
 
   return { blocked: false, mode: "limit", remainingSeconds: remaining };

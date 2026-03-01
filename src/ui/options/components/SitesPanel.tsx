@@ -153,6 +153,7 @@ export function SitesPanel({ settings, patch }: SitesPanelProps) {
           attemptCount={
             editing !== "new" ? (temptations[editing.domain]?.attempts ?? 0) : undefined
           }
+          defaultDelaySeconds={settings.defaultDelaySeconds}
         />
       )}
     </div>

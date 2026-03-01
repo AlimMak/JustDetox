@@ -11,21 +11,26 @@ interface GroupEditorProps {
   group: SiteGroup | null; // null = create new
   onSave: (group: SiteGroup) => void;
   onClose: () => void;
+  /** Global default delay seconds (used as initial value for new groups). */
+  defaultDelaySeconds?: number;
 }
 
 interface FormErrors {
   name?: string;
   domains?: string;
   limitMinutes?: string;
+  delaySeconds?: string;
 }
 
-export function GroupEditor({ group, onSave, onClose }: GroupEditorProps) {
+export function GroupEditor({ group, onSave, onClose, defaultDelaySeconds = 15 }: GroupEditorProps) {
   const isNew = group === null;
   const [name, setName] = useState(group?.name ?? "");
   const [mode, setMode] = useState<RuleMode>(group?.mode ?? "block");
   const [limitMinutes, setLimitMinutes] = useState(String(group?.limitMinutes ?? 30));
   const [domains, setDomains] = useState<string[]>(group?.domains ?? []);
   const [enabled, setEnabled] = useState(group?.enabled ?? true);
+  const [delayEnabled, setDelayEnabled] = useState(group?.delayEnabled ?? false);
+  const [delaySeconds, setDelaySeconds] = useState(String(group?.delaySeconds ?? defaultDelaySeconds));
   const [errors, setErrors] = useState<FormErrors>({});
   const { askFriction } = useFriction();
 
@@ -37,6 +42,11 @@ export function GroupEditor({ group, onSave, onClose }: GroupEditorProps) {
       const mins = parseInt(limitMinutes, 10);
       if (isNaN(mins) || mins < 1 || mins > 1440)
         errs.limitMinutes = "Enter a value between 1 and 1440";
+    }
+    if (delayEnabled && mode === "limit") {
+      const secs = parseInt(delaySeconds, 10);
+      if (isNaN(secs) || secs < 5 || secs > 60)
+        errs.delaySeconds = "Enter a value between 5 and 60";
     }
     return errs;
   };
@@ -55,6 +65,8 @@ export function GroupEditor({ group, onSave, onClose }: GroupEditorProps) {
       limitMinutes: mode === "limit" ? parseInt(limitMinutes, 10) : undefined,
       domains,
       enabled,
+      delayEnabled: mode === "limit" && delayEnabled ? true : undefined,
+      delaySeconds: mode === "limit" && delayEnabled ? parseInt(delaySeconds, 10) : undefined,
     };
 
     // Gate checks only apply when editing an existing group, not creating.
@@ -188,6 +200,54 @@ export function GroupEditor({ group, onSave, onClose }: GroupEditorProps) {
           <span className="toggle__track"><span className="toggle__thumb" /></span>
         </label>
       </div>
+
+      {/* Delay Mode — only available for time-limit groups */}
+      <div
+        className="field"
+        style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+      >
+        <div>
+          <span className="field__label" style={{ marginBottom: 0 }}>
+            Enable Delay Mode
+          </span>
+          {mode !== "limit" && (
+            <p className="field__hint" style={{ marginTop: "var(--sp-1)" }}>
+              Only available in Time limit mode.
+            </p>
+          )}
+        </div>
+        <label className={`toggle${mode !== "limit" ? " toggle--disabled" : ""}`}>
+          <input
+            className="toggle__input"
+            type="checkbox"
+            disabled={mode !== "limit"}
+            checked={mode === "limit" && delayEnabled}
+            onChange={(e) => setDelayEnabled(e.target.checked)}
+          />
+          <span className="toggle__track"><span className="toggle__thumb" /></span>
+        </label>
+      </div>
+
+      {mode === "limit" && delayEnabled && (
+        <div className="field" style={{ maxWidth: 160 }}>
+          <span className="field__label">Delay duration (seconds)</span>
+          <input
+            className="input"
+            type="number"
+            min={5}
+            max={60}
+            value={delaySeconds}
+            onChange={(e) => {
+              setDelaySeconds(e.target.value);
+              setErrors((p) => ({ ...p, delaySeconds: undefined }));
+            }}
+          />
+          <p className="field__hint">5–60 seconds.</p>
+          {errors.delaySeconds && (
+            <p className="field__error">{errors.delaySeconds}</p>
+          )}
+        </div>
+      )}
     </Modal>
   );
 }
