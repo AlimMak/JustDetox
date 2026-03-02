@@ -29,6 +29,7 @@
 import { getSettings, getUsage, setUsage, isWindowExpired } from "../core/storage";
 import type { DomainUsage, UsageMap } from "../core/types";
 import { checkLockedInExpiry } from "./lockedIn";
+import { triggerRecalculation } from "../core/dopamine";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -124,6 +125,7 @@ async function accumulateTime(domain: string, elapsedSeconds: number): Promise<v
   };
 
   await setUsage(updated);
+  triggerRecalculation();
 }
 
 // ─── Core: flush ─────────────────────────────────────────────────────────────

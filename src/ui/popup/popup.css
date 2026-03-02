@@ -187,6 +187,38 @@
   color: var(--text-3);
 }
 
+/* ─── Dopamine Score row ─────────────────────────────────────────────────────── */
+
+.popup-dopamine-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.popup-dopamine-label {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.popup-dopamine-value {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.popup-dopamine-status {
+  font-weight: var(--weight-normal);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
 /* ─── Footer ─────────────────────────────────────────────────────────────────── */
 
 .popup-footer {

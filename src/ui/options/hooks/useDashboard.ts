@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getUsage, getTemptations } from "../../../core/storage";
+import { getUsage, getTemptations, getDopamineScore } from "../../../core/storage";
 import { sumUsageUnder } from "../../../core/match";
-import type { Settings, UsageMap, TemptationMap } from "../../../core/types";
+import type { Settings, UsageMap, TemptationMap, DopamineScoreData } from "../../../core/types";
+import { DEFAULT_DOPAMINE_SCORE } from "../../../core/types";
 
 export interface DomainStat {
   hostname: string;
@@ -35,13 +36,18 @@ export interface TemptationStat {
 export function useDashboard(settings: Settings) {
   const [usage, setUsage] = useState<UsageMap>({});
   const [temptations, setTemptations] = useState<TemptationMap>({});
+  const [dopamineScore, setDopamineScore] = useState<DopamineScoreData>({
+    ...DEFAULT_DOPAMINE_SCORE,
+    windowStartTs: Date.now(),
+  });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [u, t] = await Promise.all([getUsage(), getTemptations()]);
+    const [u, t, d] = await Promise.all([getUsage(), getTemptations(), getDopamineScore()]);
     setUsage(u);
     setTemptations(t);
+    setDopamineScore(d);
     setLoading(false);
   }, []);
 
@@ -101,5 +107,5 @@ export function useDashboard(settings: Settings) {
       .slice(0, 10);
   }, [temptations]);
 
-  return { domainStats, groupStats, temptationStats, totalSeconds, loading, refresh: load };
+  return { domainStats, groupStats, temptationStats, totalSeconds, dopamineScore, loading, refresh: load };
 }

@@ -9,6 +9,7 @@
 import { getSettings, getUsage } from "../core/storage";
 import { computeBlockedState } from "../core/policy";
 import { incrementAttempt } from "../core/temptation";
+import { onDelayCompleted } from "../core/dopamine";
 import type { ExtensionMessage, CheckUrlResponse } from "../shared/messages";
 
 /**
@@ -31,6 +32,14 @@ export function registerMessages(): void {
       // events. This handler is a no-op kept for backward compatibility with
       // the old content script and will be removed in a future cleanup.
       if (message.type === "RECORD_TIME") {
+        return false;
+      }
+
+      if (message.type === "DELAY_COMPLETED") {
+        onDelayCompleted().catch((err: unknown) => {
+          // eslint-disable-next-line no-console
+          console.error("[JustDetox] DELAY_COMPLETED handler failed:", err);
+        });
         return false;
       }
 

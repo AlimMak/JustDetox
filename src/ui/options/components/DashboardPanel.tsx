@@ -2,6 +2,7 @@
 
 import { useDashboard } from "../hooks/useDashboard";
 import { BarChart } from "./BarChart";
+import { DopamineScoreCard } from "./DopamineScoreCard";
 import type { Settings } from "../../../core/types";
 import { formatTime } from "../../popup/utils/formatTime";
 import { useFriction } from "../context/FrictionContext";
@@ -13,7 +14,7 @@ interface DashboardPanelProps {
 }
 
 export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPanelProps) {
-  const { domainStats, groupStats, temptationStats, totalSeconds, loading, refresh } =
+  const { domainStats, groupStats, temptationStats, totalSeconds, dopamineScore, loading, refresh } =
     useDashboard(settings);
   const { askFriction } = useFriction();
 
@@ -50,6 +51,9 @@ export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPan
           </button>
         </div>
       </div>
+
+      {/* Dopamine Score */}
+      {!loading && <DopamineScoreCard data={dopamineScore} />}
 
       {/* Master toggle card */}
       <div

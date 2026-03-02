@@ -2,7 +2,7 @@
  * Message types for communication between content scripts and background.
  */
 
-export type MessageType = "CHECK_URL" | "RECORD_TIME" | "GET_STORAGE";
+export type MessageType = "CHECK_URL" | "RECORD_TIME" | "GET_STORAGE" | "DELAY_COMPLETED";
 
 export interface CheckUrlMessage {
   type: "CHECK_URL";
@@ -20,7 +20,11 @@ export interface GetStorageMessage {
   type: "GET_STORAGE";
 }
 
-export type ExtensionMessage = CheckUrlMessage | RecordTimeMessage | GetStorageMessage;
+export interface DelayCompletedMessage {
+  type: "DELAY_COMPLETED";
+}
+
+export type ExtensionMessage = CheckUrlMessage | RecordTimeMessage | GetStorageMessage | DelayCompletedMessage;
 
 export interface CheckUrlResponse {
   blocked: boolean;

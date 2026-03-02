@@ -188,6 +188,25 @@ export const temptationRecordSchema = z.object({
 
 export const temptationMapSchema = z.record(z.string(), temptationRecordSchema).default({});
 
+// ─── Dopamine Score ────────────────────────────────────────────────────────────
+
+export const dopamineScoreBreakdownSchema = z.object({
+  temptationPenalty: z.number().min(0),
+  timePenalty: z.number().min(0),
+  lockedInBonus: z.number().min(0),
+  delayBonus: z.number().min(0),
+});
+
+export const dopamineScoreDataSchema = z.object({
+  score: z.number().min(0).max(100),
+  previousWindowScore: z.number().min(0).max(100),
+  scoreBreakdown: dopamineScoreBreakdownSchema,
+  windowStartTs: z.number().min(0),
+  lockedInSessionsCompleted: z.number().int().min(0),
+  lockedInMinutes: z.number().min(0),
+  delayCompletions: z.number().int().min(0),
+});
+
 // ─── Full export ──────────────────────────────────────────────────────────────
 
 export const fullExportSchema = z.object({

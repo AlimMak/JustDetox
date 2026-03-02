@@ -7,6 +7,7 @@
  */
 
 import { getSettings, setSettings } from "../core/storage";
+import { onLockedInSessionCompleted } from "../core/dopamine";
 
 /**
  * Check whether the active Locked In session has expired and, if so,
@@ -26,4 +27,7 @@ export async function checkLockedInExpiry(): Promise<void> {
     ...settings,
     lockedInSession: { ...session, active: false },
   });
+
+  // Credit the Locked In bonus for the completed session.
+  await onLockedInSessionCompleted(session.startTs, session.endTs);
 }

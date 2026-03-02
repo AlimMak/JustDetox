@@ -19,6 +19,7 @@
 
 import { getTemptations, setTemptations, getSettings } from "./storage";
 import type { TemptationMap, TemptationRecord } from "./types";
+import { triggerRecalculation } from "./dopamine";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,7 @@ export async function incrementAttempt(domain: string, isLockedIn = false): Prom
   };
 
   await setTemptations(updated);
+  triggerRecalculation();
 }
 
 /**

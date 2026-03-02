@@ -228,6 +228,43 @@ export interface TemptationRecord {
 /** Full temptation map — keyed by sanitized domain hostname. */
 export type TemptationMap = Record<string, TemptationRecord>;
 
+// ─── Dopamine Score ───────────────────────────────────────────────────────────
+
+/**
+ * Persisted state for the Dopamine Score feature.
+ *
+ * The score (0–100) is a single discipline metric that updates dynamically
+ * based on focus behavior within the current reset window.
+ *
+ * Counters (lockedInSessionsCompleted, lockedInMinutes, delayCompletions)
+ * track bonus-generating events that cannot be derived from other storage keys.
+ */
+export interface DopamineScoreData {
+  /** Current score, clamped 0–100. */
+  score: number;
+  /** Score from the previous reset window (for delta display). */
+  previousWindowScore: number;
+  /** Breakdown of point sources for display. */
+  scoreBreakdown: {
+    /** Total penalty from temptation attempts (1 pt each). */
+    temptationPenalty: number;
+    /** Total penalty from time on limited sites + limit hits. */
+    timePenalty: number;
+    /** Total bonus from Locked In sessions and time. */
+    lockedInBonus: number;
+    /** Total bonus from completed Delay Mode countdowns. */
+    delayBonus: number;
+  };
+  /** Unix ms timestamp when the current score window started. */
+  windowStartTs: number;
+  /** How many Locked In sessions were completed this window. */
+  lockedInSessionsCompleted: number;
+  /** Total minutes spent in Locked In Mode this window. */
+  lockedInMinutes: number;
+  /** How many Delay Mode countdowns were completed this window. */
+  delayCompletions: number;
+}
+
 // ─── Export / Import container ────────────────────────────────────────────────
 
 /** Shape of a JSON backup produced by `exportAll()`. */
@@ -259,6 +296,16 @@ export const DEFAULT_PROTECTED_GATE: ProtectedGateSettings = {
   phrase: "LOCK IN",
   requirePhrase: true,
   requireCooldown: true,
+};
+
+export const DEFAULT_DOPAMINE_SCORE: DopamineScoreData = {
+  score: 100,
+  previousWindowScore: 100,
+  scoreBreakdown: { temptationPenalty: 0, timePenalty: 0, lockedInBonus: 0, delayBonus: 0 },
+  windowStartTs: 0,
+  lockedInSessionsCompleted: 0,
+  lockedInMinutes: 0,
+  delayCompletions: 0,
 };
 
 export const DEFAULT_SETTINGS: Settings = {

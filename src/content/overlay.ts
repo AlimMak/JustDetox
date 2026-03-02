@@ -22,7 +22,7 @@
  *    worker; this script sends no RECORD_TIME messages.
  */
 
-import type { CheckUrlMessage, CheckUrlResponse } from "../shared/messages";
+import type { CheckUrlMessage, CheckUrlResponse, DelayCompletedMessage } from "../shared/messages";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -163,6 +163,9 @@ function mountDelayOverlay(hostname: string, seconds: number): void {
       clearInterval(delayTimer!);
       delayTimer = null;
       unmountDelayOverlay();
+      // Notify background so it can credit the delay-completion bonus.
+      const msg: DelayCompletedMessage = { type: "DELAY_COMPLETED" };
+      void chrome.runtime.sendMessage(msg);
       // Re-check with the flag set so we don't re-enter the delay loop.
       justCompletedDelay = true;
       checkCurrentUrl();

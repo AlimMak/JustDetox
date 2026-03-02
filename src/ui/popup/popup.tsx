@@ -5,6 +5,8 @@ import "./popup.css";
 import { useActiveTab } from "./hooks/useActiveTab";
 import { useSiteStatus } from "./hooks/useSiteStatus";
 import { useLockedInSession } from "./hooks/useLockedInSession";
+import { useDopamineScore } from "./hooks/useDopamineScore";
+import { getScoreStatus } from "../../core/dopamine";
 import { formatTime } from "./utils/formatTime";
 
 function openAt(hash: string) {
@@ -40,6 +42,7 @@ function Popup() {
   const { hostname, loading: tabLoading, error: tabError } = useActiveTab();
   const status = useSiteStatus(tabLoading ? null : hostname);
   const { session, loading: sessionLoading } = useLockedInSession();
+  const { data: dopamineData, loading: scoreLoading } = useDopamineScore();
   const loading = tabLoading || status.loading || sessionLoading;
 
   const sessionRemaining = useSessionCountdown(session?.endTs ?? null);
@@ -126,6 +129,19 @@ function Popup() {
             <p className="popup-blocked-notice">This site is blocked.</p>
           )}
         </main>
+      )}
+
+      {/* Dopamine Score compact display */}
+      {!scoreLoading && (
+        <div className="popup-dopamine-row">
+          <span className="popup-dopamine-label">Dopamine Score</span>
+          <span className="popup-dopamine-value">
+            {Math.round(dopamineData.score)}
+            <span className="popup-dopamine-status">
+              {" · "}{getScoreStatus(dopamineData.score)}
+            </span>
+          </span>
+        </div>
       )}
 
       <footer className="popup-footer">
