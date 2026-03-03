@@ -10,6 +10,7 @@ import { getSettings, getUsage } from "../core/storage";
 import { computeBlockedState } from "../core/policy";
 import { incrementAttempt } from "../core/temptation";
 import { onDelayCompleted } from "../core/dopamine";
+import { recordEvent } from "../core/selfControl";
 import type { ExtensionMessage, CheckUrlResponse } from "../shared/messages";
 
 /**
@@ -62,6 +63,19 @@ async function handleCheckUrl(hostname: string): Promise<CheckUrlResponse> {
   if (state.blocked) {
     // Fire-and-forget: do not delay the CHECK_URL response on storage writes.
     void incrementAttempt(hostname, state.lockedIn ?? false);
+
+    // Record self-control event for the graph.
+    const scEventType = state.lockedIn
+      ? "locked_in_block"
+      : state.mode === "limit"
+        ? "limit_exceeded"
+        : "blocked";
+    void recordEvent({ domain: hostname, type: scEventType });
+  }
+
+  // Record delay_triggered event when a Delay Mode countdown is shown.
+  if (state.delayed) {
+    void recordEvent({ domain: hostname, type: "delay_triggered" });
   }
 
   return {

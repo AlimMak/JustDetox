@@ -332,6 +332,124 @@ html, body {
   color: var(--border-strong);
 }
 
+/* ─── Self-Control Graph section ─────────────────────────────────────────── */
+
+.scg-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-3);
+}
+
+.scg-subtitle {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  margin-top: var(--sp-1);
+}
+
+.scg-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-shrink: 0;
+}
+
+.scg-bucket-btn {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    background var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+}
+
+.scg-bucket-btn:hover {
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.scg-bucket-btn.active {
+  background: var(--surface-3);
+  color: var(--text-1);
+  border-color: var(--border-focus);
+}
+
+.scg-chart-container {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+
+.scg-chart-empty {
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+.scg-meta-label {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: var(--sp-2);
+}
+
+.scg-spikes {
+  margin-bottom: var(--sp-4);
+}
+
+.scg-spike-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.scg-spike-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-1) 0;
+}
+
+.scg-spike-rank {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  width: 12px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.scg-spike-time {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  flex: 1;
+}
+
+.scg-spike-count {
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  font-weight: var(--weight-semi);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+.scg-domains {
+  margin-bottom: var(--sp-4);
+}
+
 /* ─── Locked In Panel ────────────────────────────────────────────────────── */
 
 /* Step progress dots */

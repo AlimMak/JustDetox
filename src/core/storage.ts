@@ -14,8 +14,8 @@
  * never clobbers the other.
  */
 
-import type { Settings, DomainUsage, UsageMap, TemptationMap, FullExport, DopamineScoreData } from "./types";
-import { DEFAULT_SETTINGS, DEFAULT_DOPAMINE_SCORE } from "./types";
+import type { Settings, DomainUsage, UsageMap, TemptationMap, FullExport, DopamineScoreData, SelfControlData } from "./types";
+import { DEFAULT_SETTINGS, DEFAULT_DOPAMINE_SCORE, DEFAULT_SELF_CONTROL_DATA } from "./types";
 import {
   settingsSchema,
   usageMapSchema,
@@ -23,6 +23,7 @@ import {
   fullExportSchema,
   parseImportJson,
   dopamineScoreDataSchema,
+  selfControlDataSchema,
 } from "./validation";
 import type { ImportResult } from "./validation";
 
@@ -32,6 +33,7 @@ const KEY_SETTINGS = "jd_settings";
 const KEY_USAGE = "jd_usage";
 const KEY_TEMPTATIONS = "jd_temptations";
 const KEY_DOPAMINE = "jd_dopamine";
+const KEY_SELF_CONTROL = "jd_self_control";
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -306,6 +308,36 @@ export async function getDopamineScore(): Promise<DopamineScoreData> {
 /** Persist the full Dopamine Score data. */
 export async function setDopamineScore(data: DopamineScoreData): Promise<void> {
   await storageSet({ [KEY_DOPAMINE]: data });
+}
+
+// ─── Self-Control Graph ────────────────────────────────────────────────────────
+
+/**
+ * Read the Self-Control event log from storage.
+ *
+ * Returns an empty log with windowStartTs = now if absent or invalid.
+ */
+export async function getSelfControlData(): Promise<SelfControlData> {
+  const result = await storageGet<unknown>(KEY_SELF_CONTROL);
+  const raw = result[KEY_SELF_CONTROL];
+
+  if (raw === undefined || raw === null) {
+    return { ...DEFAULT_SELF_CONTROL_DATA, windowStartTs: Date.now() };
+  }
+
+  const parsed = selfControlDataSchema.safeParse(raw);
+  if (!parsed.success) {
+    // eslint-disable-next-line no-console
+    console.warn("[JustDetox] Self-control data validation failed — resetting.\n", parsed.error.format());
+    return { ...DEFAULT_SELF_CONTROL_DATA, windowStartTs: Date.now() };
+  }
+
+  return parsed.data as SelfControlData;
+}
+
+/** Persist the full Self-Control event log. */
+export async function setSelfControlData(data: SelfControlData): Promise<void> {
+  await storageSet({ [KEY_SELF_CONTROL]: data });
 }
 
 // ─── Reset-window utility ─────────────────────────────────────────────────────

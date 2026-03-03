@@ -265,6 +265,38 @@ export interface DopamineScoreData {
   delayCompletions: number;
 }
 
+// ─── Self-Control Graph ───────────────────────────────────────────────────────
+
+/** Type of event recorded for the Self-Control Graph. */
+export type SelfControlEventType =
+  | "blocked"           // Hard-block overlay shown
+  | "limit_exceeded"    // Time-limit-exceeded overlay shown
+  | "locked_in_block"   // Locked In Mode block overlay shown
+  | "delay_triggered";  // Delay Mode countdown triggered
+
+/** A single timestamped temptation event. */
+export interface SelfControlEvent {
+  /** Unix ms timestamp when the event occurred. */
+  ts: number;
+  /** Sanitized hostname that triggered the event. */
+  domain: string;
+  type: SelfControlEventType;
+}
+
+/**
+ * Persisted log of Self-Control events for the current reset window.
+ *
+ * Capped at 2,000 events per window (oldest dropped on overflow).
+ * Resets with the same interval as usage data.
+ */
+export interface SelfControlData {
+  /** Unix ms timestamp when the current window started. */
+  windowStartTs: number;
+  events: SelfControlEvent[];
+  /** Total events in the previous window (for comparison display). */
+  previousWindowCount: number;
+}
+
 // ─── Export / Import container ────────────────────────────────────────────────
 
 /** Shape of a JSON backup produced by `exportAll()`. */
@@ -306,6 +338,12 @@ export const DEFAULT_DOPAMINE_SCORE: DopamineScoreData = {
   lockedInSessionsCompleted: 0,
   lockedInMinutes: 0,
   delayCompletions: 0,
+};
+
+export const DEFAULT_SELF_CONTROL_DATA: SelfControlData = {
+  windowStartTs: 0,
+  events: [],
+  previousWindowCount: 0,
 };
 
 export const DEFAULT_SETTINGS: Settings = {

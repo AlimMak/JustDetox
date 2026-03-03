@@ -3,6 +3,7 @@
 import { useDashboard } from "../hooks/useDashboard";
 import { BarChart } from "./BarChart";
 import { DopamineScoreCard } from "./DopamineScoreCard";
+import { SelfControlSection } from "./SelfControlSection";
 import type { Settings } from "../../../core/types";
 import { formatTime } from "../../popup/utils/formatTime";
 import { useFriction } from "../context/FrictionContext";
@@ -149,6 +150,9 @@ export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPan
           </div>
         </section>
       )}
+
+      {/* Self-Control Graph */}
+      {!loading && <SelfControlSection />}
 
       {/* Groups summary — only if groups exist */}
       {settings.groups.length > 0 && (

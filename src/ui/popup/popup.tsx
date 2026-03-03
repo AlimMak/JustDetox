@@ -6,6 +6,7 @@ import { useActiveTab } from "./hooks/useActiveTab";
 import { useSiteStatus } from "./hooks/useSiteStatus";
 import { useLockedInSession } from "./hooks/useLockedInSession";
 import { useDopamineScore } from "./hooks/useDopamineScore";
+import { useSelfControlCount } from "./hooks/useSelfControlCount";
 import { getScoreStatus } from "../../core/dopamine";
 import { formatTime } from "./utils/formatTime";
 
@@ -43,6 +44,7 @@ function Popup() {
   const status = useSiteStatus(tabLoading ? null : hostname);
   const { session, loading: sessionLoading } = useLockedInSession();
   const { data: dopamineData, loading: scoreLoading } = useDopamineScore();
+  const { count: spikeCount, loading: spikeLoading } = useSelfControlCount();
   const loading = tabLoading || status.loading || sessionLoading;
 
   const sessionRemaining = useSessionCountdown(session?.endTs ?? null);
@@ -141,6 +143,23 @@ function Popup() {
               {" · "}{getScoreStatus(dopamineData.score)}
             </span>
           </span>
+        </div>
+      )}
+
+      {/* Self-Control spike count */}
+      {!spikeLoading && spikeCount > 0 && (
+        <div className="popup-spikes-row">
+          <span className="popup-spikes-label">Temptation spikes</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+            <span className="popup-spikes-value">{spikeCount}</span>
+            <button
+              className="btn btn-ghost btn--sm"
+              onClick={() => openAt("#rules")}
+              style={{ fontSize: "var(--text-xs)", padding: "2px var(--sp-2)" }}
+            >
+              View Graph
+            </button>
+          </div>
         </div>
       )}
 

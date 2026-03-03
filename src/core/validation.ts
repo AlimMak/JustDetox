@@ -207,6 +207,27 @@ export const dopamineScoreDataSchema = z.object({
   delayCompletions: z.number().int().min(0),
 });
 
+// ─── Self-Control Graph ────────────────────────────────────────────────────────
+
+export const selfControlEventTypeSchema = z.enum([
+  "blocked",
+  "limit_exceeded",
+  "locked_in_block",
+  "delay_triggered",
+]);
+
+export const selfControlEventSchema = z.object({
+  ts: z.number().min(0),
+  domain: z.string().min(1),
+  type: selfControlEventTypeSchema,
+});
+
+export const selfControlDataSchema = z.object({
+  windowStartTs: z.number().min(0),
+  events: z.array(selfControlEventSchema).default([]),
+  previousWindowCount: z.number().int().min(0).default(0),
+});
+
 // ─── Full export ──────────────────────────────────────────────────────────────
 
 export const fullExportSchema = z.object({
