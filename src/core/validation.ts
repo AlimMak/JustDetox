@@ -7,35 +7,28 @@
 
 import { z } from "zod";
 import { SETTINGS_VERSION } from "./types";
+import { normalizeDomain } from "./domain";
 
 // ─── Domain sanitization ──────────────────────────────────────────────────────
 
 /**
- * Normalize a raw string into a plain hostname.
+ * Normalize a raw string into a canonical stored hostname.
  *
- * Steps:
- *  1. Trim whitespace
- *  2. Lowercase
- *  3. Strip protocol (http:// or https://)
- *  4. Strip path, query-string, and fragment
- *  5. Strip port number
- *
- * The `www.` prefix is preserved — matching logic in the background
- * handles subdomain comparison so that `twitter.com` also covers
- * `www.twitter.com`.
+ * Delegates to `normalizeDomain` from `./domain`, which:
+ *  1. Trims whitespace and lowercases
+ *  2. Strips protocol (http:// or https://)
+ *  3. Strips path, query-string, and fragment
+ *  4. Strips port number
+ *  5. Strips trailing FQDN dot
+ *  6. Strips leading "www." prefix
  *
  * @example
  *   sanitizeDomain("  HTTPS://Twitter.com/home?lang=en  ") → "twitter.com"
- *   sanitizeDomain("www.reddit.com")                       → "www.reddit.com"
+ *   sanitizeDomain("www.reddit.com")                       → "reddit.com"
+ *   sanitizeDomain("www.youtube.com/watch?v=abc")          → "youtube.com"
  */
 export function sanitizeDomain(raw: string): string {
-  let d = raw.trim().toLowerCase();
-  d = d.replace(/^https?:\/\//, "");   // strip protocol
-  d = d.split("/")[0];                  // strip path
-  d = d.split("?")[0];                  // strip query
-  d = d.split("#")[0];                  // strip fragment
-  d = d.split(":")[0];                  // strip port
-  return d;
+  return normalizeDomain(raw);
 }
 
 /**
