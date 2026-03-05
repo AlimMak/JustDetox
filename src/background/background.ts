@@ -6,15 +6,29 @@
  *   messages.ts  — content-script message handling (CHECK_URL)
  */
 
-import { initTracker } from "./tracker";
+import { initTracker, recoverState } from "./tracker";
 import { registerMessages } from "./messages";
 
 initTracker();
 registerMessages();
 
-// ─── First-run onboarding ─────────────────────────────────────────────────────
+// ─── Lifecycle hooks ──────────────────────────────────────────────────────────
 
+// Recover state on browser startup (session storage was cleared).
+chrome.runtime.onStartup.addListener(() => {
+  recoverState().catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("[JustDetox] onStartup recoverState:", err);
+  });
+});
+
+// Recover state on install/update (SW context may be fresh).
 chrome.runtime.onInstalled.addListener(({ reason }) => {
+  recoverState().catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("[JustDetox] onInstalled recoverState:", err);
+  });
+
   if (reason === chrome.runtime.OnInstalledReason.INSTALL) {
     void chrome.tabs.create({
       url: chrome.runtime.getURL("src/ui/onboarding/onboarding.html"),

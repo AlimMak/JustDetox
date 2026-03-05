@@ -54,10 +54,19 @@ interface TrackerSession {
    * 0 means no domain is being tracked.
    */
   lastFlushTs: number;
+  /** Tab ID of the tracked tab (null when not tracking). */
+  tabId: number | null;
+  /** Window ID of the tracked tab's window (null when not tracking). */
+  windowId: number | null;
 }
 
 const SESSION_KEY = "jd_tracker";
-const SESSION_DEFAULTS: TrackerSession = { activeDomain: null, lastFlushTs: 0 };
+const SESSION_DEFAULTS: TrackerSession = {
+  activeDomain: null,
+  lastFlushTs: 0,
+  tabId: null,
+  windowId: null,
+};
 
 function sessionGet(): Promise<TrackerSession> {
   return new Promise((resolve) => {
@@ -86,6 +95,26 @@ function logErr(label: string) {
     // eslint-disable-next-line no-console
     console.error(`[JustDetox tracker] ${label}:`, err);
   };
+}
+
+// ─── Pure helpers (exported for tests) ───────────────────────────────────────
+
+/**
+ * Calculate capped elapsed seconds between two timestamps.
+ * Pure function — safe to unit-test without browser APIs.
+ *
+ * @param lastFlushTs  Unix-ms of the last flush.
+ * @param now          Unix-ms of the current moment.
+ * @param capMs        Maximum milliseconds to count (default: FLUSH_CAP_MS).
+ */
+export function computeElapsedSeconds(
+  lastFlushTs: number,
+  now: number,
+  capMs: number = FLUSH_CAP_MS,
+): number {
+  const raw = now - lastFlushTs;
+  if (raw <= 0) return 0;
+  return Math.min(raw, capMs) / 1_000;
 }
 
 // ─── Core: accumulate ─────────────────────────────────────────────────────────
@@ -139,25 +168,30 @@ async function flushCurrent(now: number): Promise<void> {
 
   if (!session.activeDomain || session.lastFlushTs === 0) return;
 
-  const rawElapsed = now - session.lastFlushTs;
-  if (rawElapsed <= 0) return;
+  const elapsedSeconds = computeElapsedSeconds(session.lastFlushTs, now);
+  if (elapsedSeconds <= 0) return;
 
-  const capped = Math.min(rawElapsed, FLUSH_CAP_MS);
-  await accumulateTime(session.activeDomain, capped / 1_000);
+  await accumulateTime(session.activeDomain, elapsedSeconds);
 }
 
 // ─── Core: domain switch ─────────────────────────────────────────────────────
 
 /**
  * Flush elapsed time for the current domain, then switch to `newDomain`.
- * Pass `null` when the browser is idle / unfocused.
+ * Pass `null` for newDomain when the browser is idle / unfocused.
  */
-async function switchActiveDomain(newDomain: string | null): Promise<void> {
+async function switchActiveDomain(
+  newDomain: string | null,
+  tabId: number | null = null,
+  windowId: number | null = null,
+): Promise<void> {
   const now = Date.now();
   await flushCurrent(now);
   await sessionSet({
     activeDomain: newDomain,
     lastFlushTs: newDomain !== null ? now : 0,
+    tabId: newDomain !== null ? tabId : null,
+    windowId: newDomain !== null ? windowId : null,
   });
 }
 
@@ -209,7 +243,7 @@ async function handleTabActivated(info: chrome.tabs.TabActiveInfo): Promise<void
   try {
     const tab = await chrome.tabs.get(info.tabId);
     const domain = isTrackable(tab.url) ? hostnameFrom(tab.url) : null;
-    await switchActiveDomain(domain);
+    await switchActiveDomain(domain, info.tabId, info.windowId);
   } catch {
     await switchActiveDomain(null);
   }
@@ -225,7 +259,8 @@ async function handleWindowFocusChanged(windowId: number): Promise<void> {
   try {
     const [tab] = await chrome.tabs.query({ active: true, windowId });
     const domain = tab && isTrackable(tab.url) ? hostnameFrom(tab.url) : null;
-    await switchActiveDomain(domain);
+    const tabId = tab?.id ?? null;
+    await switchActiveDomain(domain, tabId, windowId);
   } catch {
     await switchActiveDomain(null);
   }
@@ -243,7 +278,21 @@ async function handleTabUpdated(
   if (!active || active.id !== tabId) return;
 
   const domain = isTrackable(changeInfo.url) ? hostnameFrom(changeInfo.url) : null;
-  await switchActiveDomain(domain);
+  await switchActiveDomain(domain, tabId, active.windowId);
+}
+
+async function handleTabRemoved(tabId: number): Promise<void> {
+  const session = await sessionGet();
+  // Only stop tracking if the removed tab is the one we're tracking.
+  if (session.tabId !== tabId) return;
+  await switchActiveDomain(null);
+}
+
+async function handleWindowRemoved(windowId: number): Promise<void> {
+  const session = await sessionGet();
+  // Only stop tracking if the removed window contains our tracked tab.
+  if (session.windowId !== windowId) return;
+  await switchActiveDomain(null);
 }
 
 async function handleAlarmTick(): Promise<void> {
@@ -262,19 +311,6 @@ async function handleAlarmTick(): Promise<void> {
 
 // ─── Startup helpers ─────────────────────────────────────────────────────────
 
-/**
- * Detect the currently active tab on SW startup and begin tracking it.
- * Resets any stale session from a previous SW instance.
- */
-async function initSession(): Promise<void> {
-  const tab = await queryActiveFocusedTab();
-  const domain = tab && isTrackable(tab.url) ? hostnameFrom(tab.url) : null;
-  await sessionSet({
-    activeDomain: domain,
-    lastFlushTs: domain !== null ? Date.now() : 0,
-  });
-}
-
 /** Create the periodic alarm if it doesn't already exist. */
 function ensureAlarm(): void {
   chrome.alarms.get(ALARM_NAME, (existing) => {
@@ -287,6 +323,49 @@ function ensureAlarm(): void {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
+ * Flush any pending time from a previous SW instance, then detect and begin
+ * tracking the currently active tab (only if a browser window is focused).
+ *
+ * Called:
+ *  - at top of initTracker() (every SW wake)
+ *  - on chrome.runtime.onStartup (after browser restarts)
+ *  - on chrome.runtime.onInstalled (install / update)
+ */
+export async function recoverState(): Promise<void> {
+  const now = Date.now();
+
+  // Flush any stale pending time from the previous SW instance.
+  // FLUSH_CAP_MS ensures sleep gaps don't inflate counts.
+  await flushCurrent(now);
+
+  // Only start tracking if a browser window is currently focused.
+  const tab = await queryActiveFocusedTab();
+  let domain: string | null = null;
+  let tabId: number | null = null;
+  let windowId: number | null = null;
+
+  if (tab) {
+    try {
+      const win = await chrome.windows.get(tab.windowId);
+      if (win.focused && isTrackable(tab.url)) {
+        domain = hostnameFrom(tab.url);
+        tabId = tab.id ?? null;
+        windowId = tab.windowId;
+      }
+    } catch {
+      // Window not found — don't start tracking.
+    }
+  }
+
+  await sessionSet({
+    activeDomain: domain,
+    lastFlushTs: domain !== null ? now : 0,
+    tabId: domain !== null ? tabId : null,
+    windowId: domain !== null ? windowId : null,
+  });
+}
+
+/**
  * Wire up the time tracking engine.
  *
  * Must be called once at the top of background.ts. Safe to call on every
@@ -296,12 +375,14 @@ function ensureAlarm(): void {
  *  - chrome.tabs.onActivated
  *  - chrome.windows.onFocusChanged
  *  - chrome.tabs.onUpdated
- *  - chrome.alarms.onAlarm  (jd-tick)
- *  - chrome.runtime.onSuspend (final flush before SW sleeps)
+ *  - chrome.tabs.onRemoved      (flush + stop when tracked tab closes)
+ *  - chrome.windows.onRemoved   (flush + stop when tracked window closes)
+ *  - chrome.alarms.onAlarm      (jd-tick)
+ *  - chrome.runtime.onSuspend   (final flush + advance lastFlushTs before SW sleeps)
  */
 export function initTracker(): void {
   ensureAlarm();
-  initSession().catch(logErr("initSession"));
+  recoverState().catch(logErr("recoverState"));
 
   chrome.tabs.onActivated.addListener((info) => {
     handleTabActivated(info).catch(logErr("onActivated"));
@@ -315,6 +396,14 @@ export function initTracker(): void {
     handleTabUpdated(tabId, changeInfo).catch(logErr("onUpdated"));
   });
 
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    handleTabRemoved(tabId).catch(logErr("onTabRemoved"));
+  });
+
+  chrome.windows.onRemoved.addListener((windowId) => {
+    handleWindowRemoved(windowId).catch(logErr("onWindowRemoved"));
+  });
+
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === ALARM_NAME) {
       handleAlarmTick().catch(logErr("alarm tick"));
@@ -322,9 +411,11 @@ export function initTracker(): void {
   });
 
   // Best-effort final flush before the SW is terminated.
-  // onSuspend is not guaranteed to fire but worth using when available.
+  // Also advances lastFlushTs so the next wake doesn't double-count.
   chrome.runtime.onSuspend.addListener(() => {
     const now = Date.now();
-    flushCurrent(now).catch(logErr("onSuspend flush"));
+    flushCurrent(now)
+      .then(() => sessionSet({ lastFlushTs: now }))
+      .catch(logErr("onSuspend flush"));
   });
 }
