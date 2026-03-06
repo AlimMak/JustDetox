@@ -15,6 +15,7 @@
  */
 
 import type { Settings, DomainUsage, UsageMap, TemptationMap, FullExport, DopamineScoreData, SelfControlData } from "./types";
+import { invalidateRuleIndex } from "./ruleIndex";
 import { DEFAULT_SETTINGS, DEFAULT_DOPAMINE_SCORE, DEFAULT_SELF_CONTROL_DATA } from "./types";
 import {
   settingsSchema,
@@ -87,9 +88,10 @@ export async function getSettings(): Promise<Settings> {
   return parsed.data as Settings;
 }
 
-/** Persist the complete settings object. */
+/** Persist the complete settings object and invalidate the rule index cache. */
 export async function setSettings(settings: Settings): Promise<void> {
   await storageSet({ [KEY_SETTINGS]: settings });
+  invalidateRuleIndex();
 }
 
 /**

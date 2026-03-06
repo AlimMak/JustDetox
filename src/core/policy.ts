@@ -17,7 +17,8 @@
  */
 
 import type { Settings, UsageMap, RuleMode } from "./types";
-import { normalizeHostname, domainCovers, matchesAny, sumUsageUnder } from "./match";
+import { normalizeHostname, domainCovers, sumUsageUnder } from "./match";
+import { getOrBuildIndex, resolveDomainRule } from "./ruleIndex";
 
 // ─── Block messages ───────────────────────────────────────────────────────────
 
@@ -92,13 +93,16 @@ export function resolveEffectivePolicy(
   hostname: string,
   settings: Settings,
 ): EffectivePolicy | null {
+  // Normalize once; pass the pre-normalized form to resolveDomainRule.
   const host = normalizeHostname(hostname);
 
-  // 1. Per-site rules
-  for (const rule of settings.siteRules) {
-    if (!rule.enabled) continue;
-    if (!domainCovers(host, normalizeHostname(rule.domain))) continue;
+  // Build (or reuse cached) index and resolve via O(labels) Map lookups.
+  const index = getOrBuildIndex(settings);
+  const resolved = resolveDomainRule(host, index);
 
+  // 1. Per-site rule
+  if (resolved?.kind === "site") {
+    const { rule } = resolved;
     return {
       mode: rule.mode,
       limitSeconds: rule.mode === "limit" ? (rule.limitMinutes ?? 0) * 60 : undefined,
@@ -109,11 +113,9 @@ export function resolveEffectivePolicy(
     };
   }
 
-  // 2. Group rules
-  for (const group of settings.groups) {
-    if (!group.enabled) continue;
-    if (!matchesAny(host, group.domains)) continue;
-
+  // 2. Group rule
+  if (resolved?.kind === "group") {
+    const { group } = resolved;
     return {
       mode: group.mode,
       limitSeconds: group.mode === "limit" ? (group.limitMinutes ?? 0) * 60 : undefined,
@@ -125,11 +127,11 @@ export function resolveEffectivePolicy(
   }
 
   // 3. Global block list
-  if (matchesAny(host, settings.globalBlockList)) {
+  if (resolved?.kind === "global-block") {
     return { mode: "block", reason: "global-block-list" };
   }
 
-  // 4. Global defaults
+  // 4. Global defaults (catch-all — not domain-specific, not in index)
   if (settings.globalDefaults?.mode) {
     const { mode, limitMinutes } = settings.globalDefaults;
     return {
