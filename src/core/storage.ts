@@ -16,6 +16,7 @@
 
 import type { Settings, DomainUsage, UsageMap, TemptationMap, FullExport, DopamineScoreData, SelfControlData } from "./types";
 import { invalidateRuleIndex } from "./ruleIndex";
+import { queueStorageReplace, readThrough, forceFlushStorageQueue } from "./storageQueue";
 import { DEFAULT_SETTINGS, DEFAULT_DOPAMINE_SCORE, DEFAULT_SELF_CONTROL_DATA } from "./types";
 import {
   settingsSchema,
@@ -113,6 +114,11 @@ export async function updateSettings(patch: Partial<Settings>): Promise<Settings
  * Returns an empty map if absent or invalid.
  */
 export async function getUsage(): Promise<UsageMap> {
+  // Write-back cache: return the pending value if a write is queued,
+  // avoiding read-after-write staleness in the same SW activation.
+  const cached = readThrough(KEY_USAGE);
+  if (cached !== undefined) return cached as UsageMap;
+
   const result = await storageGet<unknown>(KEY_USAGE);
   const raw = result[KEY_USAGE];
 
@@ -130,9 +136,12 @@ export async function getUsage(): Promise<UsageMap> {
   return parsed.data as UsageMap;
 }
 
-/** Persist the full usage map. */
-export async function setUsage(usage: UsageMap): Promise<void> {
-  await storageSet({ [KEY_USAGE]: usage });
+/**
+ * Queue the full usage map for batched persistence.
+ * Readable immediately via getUsage() (write-back cache).
+ */
+export function setUsage(usage: UsageMap): void {
+  queueStorageReplace(KEY_USAGE, usage);
 }
 
 /**
@@ -193,6 +202,9 @@ export async function resetAllUsage(): Promise<void> {
  * Returns an empty map if absent or invalid.
  */
 export async function getTemptations(): Promise<TemptationMap> {
+  const cached = readThrough(KEY_TEMPTATIONS);
+  if (cached !== undefined) return cached as TemptationMap;
+
   const result = await storageGet<unknown>(KEY_TEMPTATIONS);
   const raw = result[KEY_TEMPTATIONS];
 
@@ -210,9 +222,9 @@ export async function getTemptations(): Promise<TemptationMap> {
   return parsed.data as TemptationMap;
 }
 
-/** Persist the full temptation map. */
-export async function setTemptations(temptations: TemptationMap): Promise<void> {
-  await storageSet({ [KEY_TEMPTATIONS]: temptations });
+/** Queue the full temptation map for batched persistence. */
+export function setTemptations(temptations: TemptationMap): void {
+  queueStorageReplace(KEY_TEMPTATIONS, temptations);
 }
 
 /**
@@ -233,6 +245,9 @@ export async function resetAllTemptations(): Promise<void> {
  * The caller is responsible for triggering the browser download.
  */
 export async function exportAll(): Promise<string> {
+  // Flush any queued writes so the export reflects the latest state.
+  await forceFlushStorageQueue();
+
   const [settings, usage, temptations] = await Promise.all([
     getSettings(),
     getUsage(),
@@ -273,11 +288,16 @@ export async function importAll(json: string): Promise<ImportResult> {
     };
   }
 
-  await Promise.all([
-    setSettings(validated.data.settings as Settings),
-    setUsage((validated.data.usage ?? {}) as UsageMap),
-    setTemptations((validated.data.temptations ?? {}) as TemptationMap),
-  ]);
+  // Drain any stale queued writes before overwriting with imported data.
+  await forceFlushStorageQueue();
+
+  // setSettings writes immediately; setUsage/setTemptations queue their writes.
+  await setSettings(validated.data.settings as Settings);
+  setUsage((validated.data.usage ?? {}) as UsageMap);
+  setTemptations((validated.data.temptations ?? {}) as TemptationMap);
+
+  // Flush queued usage + temptation writes before returning success.
+  await forceFlushStorageQueue();
 
   return { ok: true, data: validated.data };
 }
@@ -290,6 +310,9 @@ export async function importAll(json: string): Promise<ImportResult> {
  * Returns the default (score = 100, no counters) if absent or invalid.
  */
 export async function getDopamineScore(): Promise<DopamineScoreData> {
+  const cached = readThrough(KEY_DOPAMINE);
+  if (cached !== undefined) return cached as DopamineScoreData;
+
   const result = await storageGet<unknown>(KEY_DOPAMINE);
   const raw = result[KEY_DOPAMINE];
 
@@ -307,9 +330,12 @@ export async function getDopamineScore(): Promise<DopamineScoreData> {
   return parsed.data as DopamineScoreData;
 }
 
-/** Persist the full Dopamine Score data. */
-export async function setDopamineScore(data: DopamineScoreData): Promise<void> {
-  await storageSet({ [KEY_DOPAMINE]: data });
+/**
+ * Queue the full Dopamine Score data for batched persistence.
+ * Readable immediately via getDopamineScore() (write-back cache).
+ */
+export function setDopamineScore(data: DopamineScoreData): void {
+  queueStorageReplace(KEY_DOPAMINE, data);
 }
 
 // ─── Self-Control Graph ────────────────────────────────────────────────────────
@@ -320,6 +346,9 @@ export async function setDopamineScore(data: DopamineScoreData): Promise<void> {
  * Returns an empty log with windowStartTs = now if absent or invalid.
  */
 export async function getSelfControlData(): Promise<SelfControlData> {
+  const cached = readThrough(KEY_SELF_CONTROL);
+  if (cached !== undefined) return cached as SelfControlData;
+
   const result = await storageGet<unknown>(KEY_SELF_CONTROL);
   const raw = result[KEY_SELF_CONTROL];
 
@@ -337,9 +366,12 @@ export async function getSelfControlData(): Promise<SelfControlData> {
   return parsed.data as SelfControlData;
 }
 
-/** Persist the full Self-Control event log. */
-export async function setSelfControlData(data: SelfControlData): Promise<void> {
-  await storageSet({ [KEY_SELF_CONTROL]: data });
+/**
+ * Queue the full Self-Control event log for batched persistence.
+ * Readable immediately via getSelfControlData() (write-back cache).
+ */
+export function setSelfControlData(data: SelfControlData): void {
+  queueStorageReplace(KEY_SELF_CONTROL, data);
 }
 
 // ─── Reset-window utility ─────────────────────────────────────────────────────
