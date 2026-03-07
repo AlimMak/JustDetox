@@ -27,6 +27,7 @@
  */
 
 import { getSettings, getUsage, setUsage, isWindowExpired } from "../core/storage";
+import { forceFlushStorageQueue } from "../core/storageQueue";
 import type { DomainUsage, UsageMap } from "../core/types";
 import { checkLockedInExpiry } from "./lockedIn";
 import { triggerRecalculation } from "../core/dopamine";
@@ -411,10 +412,12 @@ export function initTracker(): void {
   });
 
   // Best-effort final flush before the SW is terminated.
-  // Also advances lastFlushTs so the next wake doesn't double-count.
+  // Order: flush in-memory time → drain storage queue → advance lastFlushTs.
+  // Advancing lastFlushTs last ensures the next wake doesn't double-count.
   chrome.runtime.onSuspend.addListener(() => {
     const now = Date.now();
     flushCurrent(now)
+      .then(() => forceFlushStorageQueue())
       .then(() => sessionSet({ lastFlushTs: now }))
       .catch(logErr("onSuspend flush"));
   });
