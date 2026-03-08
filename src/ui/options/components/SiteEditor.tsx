@@ -1,9 +1,10 @@
 // FILE: src/ui/options/components/SiteEditor.tsx
 
 import { useState } from "react";
-import type { SiteRule, RuleMode } from "../../../core/types";
+import type { SiteRule, RuleMode, ScheduleWindow } from "../../../core/types";
 import { sanitizeDomain, isValidDomain } from "../../../core/validation";
 import { Modal } from "./Modal";
+import { ScheduleEditor } from "./ScheduleEditor";
 import { useFriction } from "../context/FrictionContext";
 
 interface SiteEditorProps {
@@ -20,6 +21,7 @@ interface FormErrors {
   domain?: string;
   limitMinutes?: string;
   delaySeconds?: string;
+  schedule?: string;
 }
 
 export function SiteEditor({ rule, onSave, onClose, attemptCount, defaultDelaySeconds = 15 }: SiteEditorProps) {
@@ -30,6 +32,7 @@ export function SiteEditor({ rule, onSave, onClose, attemptCount, defaultDelaySe
   const [enabled, setEnabled] = useState(rule?.enabled ?? true);
   const [delayEnabled, setDelayEnabled] = useState(rule?.delayEnabled ?? false);
   const [delaySeconds, setDelaySeconds] = useState(String(rule?.delaySeconds ?? defaultDelaySeconds));
+  const [schedules, setSchedules] = useState<ScheduleWindow[]>(rule?.schedule ?? []);
   const [errors, setErrors] = useState<FormErrors>({});
   const { askFriction } = useFriction();
 
@@ -49,6 +52,10 @@ export function SiteEditor({ rule, onSave, onClose, attemptCount, defaultDelaySe
       if (isNaN(secs) || secs < 5 || secs > 60)
         errs.delaySeconds = "Enter a value between 5 and 60";
     }
+    if (schedules.length > 0) {
+      const invalid = schedules.some((s) => s.days.length === 0);
+      if (invalid) errs.schedule = "Each schedule window must have at least one day selected";
+    }
     return errs;
   };
 
@@ -66,6 +73,7 @@ export function SiteEditor({ rule, onSave, onClose, attemptCount, defaultDelaySe
       enabled,
       delayEnabled: mode === "limit" && delayEnabled ? true : undefined,
       delaySeconds: mode === "limit" && delayEnabled ? parseInt(delaySeconds, 10) : undefined,
+      schedule: schedules.length > 0 ? schedules : undefined,
     };
 
     // Friction checks only apply when editing an existing rule, not creating.
@@ -227,6 +235,16 @@ export function SiteEditor({ rule, onSave, onClose, attemptCount, defaultDelaySe
           )}
         </div>
       )}
+
+      {/* Schedule */}
+      <ScheduleEditor
+        schedules={schedules}
+        onChange={(s) => {
+          setSchedules(s);
+          setErrors((p) => ({ ...p, schedule: undefined }));
+        }}
+        error={errors.schedule}
+      />
 
       {/* Temptation stat — only shown when editing an existing rule */}
       {!isNew && typeof attemptCount === "number" && (

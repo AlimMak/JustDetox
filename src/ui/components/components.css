@@ -989,3 +989,141 @@
   font-size: 11px;
   pointer-events: none;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   SCHEDULE EDITOR
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Outer section — sits inside a modal form */
+.sched-section {
+  border-top: 1px solid var(--border);
+  padding-top: var(--sp-4);
+  margin-top: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* Header row: "Schedule" label + Always active / Scheduled toggle */
+.sched-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.sched-header__label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+}
+
+/* List of windows */
+.sched-windows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* Single schedule window card */
+.sched-window {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* Top row: enabled toggle + remove button */
+.sched-window__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.sched-window__top-left {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.sched-window__enabled-label {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  user-select: none;
+}
+
+/* Day-of-week pill buttons: S M T W T F S */
+.sched-days {
+  display: flex;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+}
+
+.sched-day {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  font-family: ui-monospace, monospace;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out);
+  user-select: none;
+  padding: 0;
+}
+
+.sched-day:hover:not(.sched-day--active) {
+  background: var(--surface-4);
+  border-color: var(--border-strong);
+  color: var(--text-2);
+}
+
+.sched-day--active {
+  background: var(--text-1);
+  border-color: var(--text-1);
+  color: var(--bg);
+}
+
+/* Time inputs row */
+.sched-window__times {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.sched-window__times .input {
+  width: 110px;
+  font-size: var(--text-sm);
+  padding: 0 var(--sp-2);
+  height: 30px;
+}
+
+.sched-window__times-sep {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+/* "+ Add window" button */
+.sched-add-btn {
+  align-self: flex-start;
+}
+
+/* Error message below section */
+.sched-error {
+  font-size: var(--text-xs);
+  color: var(--text-danger);
+}

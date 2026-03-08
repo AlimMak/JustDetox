@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Settings, SiteRule, TemptationMap } from "../../../core/types";
 import { getTemptations } from "../../../core/storage";
+import { formatScheduleSummary } from "../../../core/schedule";
 import { SiteEditor } from "./SiteEditor";
 import { useFriction } from "../context/FrictionContext";
 
@@ -110,6 +111,13 @@ export function SitesPanel({ settings, patch }: SitesPanelProps) {
                     <span className="list-row__title">{r.domain}</span>
                     <span className="list-row__sub">
                       {r.mode === "block" ? "Block" : `${r.limitMinutes ?? 0} min/window`}
+                      {r.schedule && r.schedule.length > 0 && (
+                        <>
+                          {" · "}
+                          {formatScheduleSummary(r.schedule[0])}
+                          {r.schedule.length > 1 && ` +${r.schedule.length - 1}`}
+                        </>
+                      )}
                     </span>
                   </div>
                   <div className="list-row__aside">

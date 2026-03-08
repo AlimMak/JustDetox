@@ -1,9 +1,10 @@
 // FILE: src/ui/options/components/GroupEditor.tsx
 
 import { useState } from "react";
-import type { SiteGroup, RuleMode } from "../../../core/types";
+import type { SiteGroup, RuleMode, ScheduleWindow } from "../../../core/types";
 import { Modal } from "./Modal";
 import { DomainPillInput } from "./DomainPillInput";
+import { ScheduleEditor } from "./ScheduleEditor";
 import { generateId } from "../utils/id";
 import { useFriction } from "../context/FrictionContext";
 
@@ -20,6 +21,7 @@ interface FormErrors {
   domains?: string;
   limitMinutes?: string;
   delaySeconds?: string;
+  schedule?: string;
 }
 
 export function GroupEditor({ group, onSave, onClose, defaultDelaySeconds = 15 }: GroupEditorProps) {
@@ -31,6 +33,7 @@ export function GroupEditor({ group, onSave, onClose, defaultDelaySeconds = 15 }
   const [enabled, setEnabled] = useState(group?.enabled ?? true);
   const [delayEnabled, setDelayEnabled] = useState(group?.delayEnabled ?? false);
   const [delaySeconds, setDelaySeconds] = useState(String(group?.delaySeconds ?? defaultDelaySeconds));
+  const [schedules, setSchedules] = useState<ScheduleWindow[]>(group?.schedule ?? []);
   const [errors, setErrors] = useState<FormErrors>({});
   const { askFriction } = useFriction();
 
@@ -47,6 +50,10 @@ export function GroupEditor({ group, onSave, onClose, defaultDelaySeconds = 15 }
       const secs = parseInt(delaySeconds, 10);
       if (isNaN(secs) || secs < 5 || secs > 60)
         errs.delaySeconds = "Enter a value between 5 and 60";
+    }
+    if (schedules.length > 0) {
+      const invalid = schedules.some((s) => s.days.length === 0);
+      if (invalid) errs.schedule = "Each schedule window must have at least one day selected";
     }
     return errs;
   };
@@ -67,6 +74,7 @@ export function GroupEditor({ group, onSave, onClose, defaultDelaySeconds = 15 }
       enabled,
       delayEnabled: mode === "limit" && delayEnabled ? true : undefined,
       delaySeconds: mode === "limit" && delayEnabled ? parseInt(delaySeconds, 10) : undefined,
+      schedule: schedules.length > 0 ? schedules : undefined,
     };
 
     // Gate checks only apply when editing an existing group, not creating.
@@ -248,6 +256,16 @@ export function GroupEditor({ group, onSave, onClose, defaultDelaySeconds = 15 }
           )}
         </div>
       )}
+
+      {/* Schedule */}
+      <ScheduleEditor
+        schedules={schedules}
+        onChange={(s) => {
+          setSchedules(s);
+          setErrors((p) => ({ ...p, schedule: undefined }));
+        }}
+        error={errors.schedule}
+      />
     </Modal>
   );
 }

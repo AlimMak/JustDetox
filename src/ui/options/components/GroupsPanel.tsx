@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Settings, SiteGroup } from "../../../core/types";
+import { formatScheduleSummary } from "../../../core/schedule";
 import { GroupEditor } from "./GroupEditor";
 import { useFriction } from "../context/FrictionContext";
 
@@ -83,8 +84,16 @@ export function GroupsPanel({ settings, patch }: GroupsPanelProps) {
                 <span className="list-row__sub">
                   {g.mode === "block"
                     ? "Block"
-                    : `${g.limitMinutes ?? 0} min/window`}{" "}
-                  · {g.domains.length} domain{g.domains.length !== 1 ? "s" : ""}
+                    : `${g.limitMinutes ?? 0} min/window`}
+                  {" · "}
+                  {g.domains.length} domain{g.domains.length !== 1 ? "s" : ""}
+                  {g.schedule && g.schedule.length > 0 && (
+                    <>
+                      {" · "}
+                      {formatScheduleSummary(g.schedule[0])}
+                      {g.schedule.length > 1 && ` +${g.schedule.length - 1}`}
+                    </>
+                  )}
                 </span>
               </div>
               <div className="list-row__aside">
