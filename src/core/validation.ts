@@ -62,6 +62,30 @@ export const ruleModeSchema = z.enum(["block", "limit"]);
 /** Minutes-per-window constraint: 1 min → 1440 min (24 h). */
 export const limitMinutesSchema = z.number().int().min(1).max(1_440);
 
+// ─── Schedule ─────────────────────────────────────────────────────────────────
+
+/**
+ * A single schedule window: days of the week + start/end time.
+ *
+ * Validates:
+ *  - `days` must have at least one entry, each 0–6
+ *  - `startMinutes` and `endMinutes` must be in range [0, 1439]
+ *  - start must not equal end (a zero-duration window is meaningless)
+ */
+export const scheduleWindowSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    days: z
+      .array(z.number().int().min(0).max(6))
+      .min(1, "Select at least one day"),
+    startMinutes: z.number().int().min(0).max(1439),
+    endMinutes: z.number().int().min(0).max(1439),
+  })
+  .refine((s) => s.startMinutes !== s.endMinutes, {
+    message: "Start and end time must be different",
+    path: ["endMinutes"],
+  });
+
 // ─── SiteRule ─────────────────────────────────────────────────────────────────
 
 export const siteRuleSchema = z
@@ -72,6 +96,7 @@ export const siteRuleSchema = z
     enabled: z.boolean().default(true),
     delayEnabled: z.boolean().optional(),
     delaySeconds: z.number().int().min(5).max(60).optional(),
+    schedule: z.array(scheduleWindowSchema).optional(),
   })
   .refine((r) => r.mode !== "limit" || r.limitMinutes !== undefined, {
     message: "limitMinutes is required when mode is 'limit'",
@@ -90,6 +115,7 @@ export const siteGroupSchema = z
     enabled: z.boolean().default(true),
     delayEnabled: z.boolean().optional(),
     delaySeconds: z.number().int().min(5).max(60).optional(),
+    schedule: z.array(scheduleWindowSchema).optional(),
   })
   .refine((g) => g.mode !== "limit" || g.limitMinutes !== undefined, {
     message: "limitMinutes is required when mode is 'limit'",

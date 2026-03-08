@@ -17,6 +17,27 @@ export type RuleMode = "block" | "limit";
  */
 export type ResetIntervalHours = 6 | 12 | 24 | 48;
 
+// ─── Scheduling ───────────────────────────────────────────────────────────────
+
+/**
+ * A single time-window within which a rule is active.
+ *
+ * `days` uses JS `Date.getDay()` numbering: 0 = Sunday … 6 = Saturday.
+ * `startMinutes` and `endMinutes` are minutes since midnight (0–1439).
+ *
+ * Overnight windows: when `endMinutes < startMinutes` the window crosses
+ * midnight, e.g. 22:00–02:00 (startMinutes=1320, endMinutes=120).
+ */
+export interface ScheduleWindow {
+  enabled: boolean;
+  /** Days of the week this window applies to. At least one required. */
+  days: number[];
+  /** Start of the window in minutes since midnight (0–1439). */
+  startMinutes: number;
+  /** End of the window in minutes since midnight (0–1439). Must differ from startMinutes. */
+  endMinutes: number;
+}
+
 // ─── Rules ────────────────────────────────────────────────────────────────────
 
 /**
@@ -35,6 +56,12 @@ export interface SiteRule {
   delayEnabled?: boolean;
   /** Countdown duration in seconds (5–60). Defaults to the global defaultDelaySeconds when not set. */
   delaySeconds?: number;
+  /**
+   * Optional schedule windows. When present, the rule only applies during
+   * matching time windows. When absent, the rule is always active.
+   * Multiple windows use OR logic — any matching window activates the rule.
+   */
+  schedule?: ScheduleWindow[];
 }
 
 // ─── Groups ───────────────────────────────────────────────────────────────────
@@ -58,6 +85,12 @@ export interface SiteGroup {
   delayEnabled?: boolean;
   /** Countdown duration in seconds (5–60). Defaults to the global defaultDelaySeconds when not set. */
   delaySeconds?: number;
+  /**
+   * Optional schedule windows. When present, the group only applies during
+   * matching time windows. When absent, the group is always active.
+   * Multiple windows use OR logic — any matching window activates the group.
+   */
+  schedule?: ScheduleWindow[];
 }
 
 // ─── Global settings ──────────────────────────────────────────────────────────

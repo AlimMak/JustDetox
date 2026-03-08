@@ -16,9 +16,10 @@
  * from service worker, content scripts, and UI alike.
  */
 
-import type { Settings, UsageMap, RuleMode } from "./types";
+import type { Settings, UsageMap, RuleMode, ScheduleWindow } from "./types";
 import { normalizeHostname, domainCovers, sumUsageUnder } from "./match";
 import { getOrBuildIndex, resolveDomainRule } from "./ruleIndex";
+import { isAnyScheduleActive } from "./schedule";
 
 // ─── Block messages ───────────────────────────────────────────────────────────
 
@@ -58,6 +59,12 @@ export interface EffectivePolicy {
   delayEnabled?: boolean;
   /** Countdown duration in seconds. Only meaningful when delayEnabled is true. */
   delaySeconds?: number;
+  /**
+   * Schedule windows from the matched rule/group (if any).
+   * Absent for global-block-list and global-defaults matches (always active).
+   * Checked in computeBlockedState before applying block/limit logic.
+   */
+  schedule?: ScheduleWindow[];
 }
 
 export interface BlockedState {
@@ -110,6 +117,7 @@ export function resolveEffectivePolicy(
       configuredDomain: rule.domain,
       delayEnabled: rule.delayEnabled,
       delaySeconds: rule.delaySeconds ?? settings.defaultDelaySeconds,
+      schedule: rule.schedule,
     };
   }
 
@@ -123,6 +131,7 @@ export function resolveEffectivePolicy(
       groupId: group.id,
       delayEnabled: group.delayEnabled,
       delaySeconds: group.delaySeconds ?? settings.defaultDelaySeconds,
+      schedule: group.schedule,
     };
   }
 
@@ -186,6 +195,14 @@ export function computeBlockedState(
 
   const policy = resolveEffectivePolicy(hostname, settings);
   if (!policy) return { blocked: false };
+
+  // Schedule gate: if the matched rule has schedules and none is currently
+  // active, skip the rule for this time window (site is unrestricted).
+  if (policy.schedule && policy.schedule.length > 0) {
+    if (!isAnyScheduleActive(policy.schedule, new Date())) {
+      return { blocked: false };
+    }
+  }
 
   if (policy.mode === "block") {
     return { blocked: true, message: MSG_HARD_BLOCK, mode: "block" };
