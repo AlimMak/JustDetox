@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"C:\\\\Users\\\\alimm\\\\OneDrive\\\\Desktop\\\\Projects\\\\JustDetox\" && npx tsc --noEmit 2>&1)",
+      "Bash(cd C:\\\\Users\\\\alimm\\\\OneDrive\\\\Desktop\\\\Projects\\\\JustDetox:*)",
+      "Bash(tail:*)"
+    ]
+  }
+}
