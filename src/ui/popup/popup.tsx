@@ -7,6 +7,7 @@ import { useSiteStatus } from "./hooks/useSiteStatus";
 import { useLockedInSession } from "./hooks/useLockedInSession";
 import { useDopamineScore } from "./hooks/useDopamineScore";
 import { useSelfControlCount } from "./hooks/useSelfControlCount";
+import { useAllowlistMode } from "./hooks/useAllowlistMode";
 import { getScoreStatus } from "../../core/dopamine";
 import { formatTime } from "./utils/formatTime";
 
@@ -45,6 +46,7 @@ function Popup() {
   const { session, loading: sessionLoading } = useLockedInSession();
   const { data: dopamineData, loading: scoreLoading } = useDopamineScore();
   const { count: spikeCount, loading: spikeLoading } = useSelfControlCount();
+  const { allowlistMode, loading: allowlistLoading } = useAllowlistMode();
   const loading = tabLoading || status.loading || sessionLoading;
 
   const sessionRemaining = useSessionCountdown(session?.endTs ?? null);
@@ -160,6 +162,33 @@ function Popup() {
               View Graph
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Focus Environment row */}
+      {!allowlistLoading && (
+        <div className="popup-focus-row">
+          <span className="popup-focus-label">Focus Environment</span>
+          {allowlistMode.enabled ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+              <span className="popup-focus-active">Active</span>
+              <button
+                className="btn btn-ghost btn--sm"
+                onClick={() => openAt("#settings")}
+                style={{ fontSize: "var(--text-xs)", padding: "2px var(--sp-2)" }}
+              >
+                Settings
+              </button>
+            </div>
+          ) : (
+            <button
+              className="btn btn-ghost btn--sm"
+              onClick={() => openAt("#settings")}
+              style={{ fontSize: "var(--text-xs)", padding: "2px var(--sp-2)" }}
+            >
+              Start Focus
+            </button>
+          )}
         </div>
       )}
 

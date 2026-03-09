@@ -65,6 +65,9 @@ async function handleCheckUrl(hostname: string): Promise<CheckUrlResponse> {
     void incrementAttempt(hostname, state.lockedIn ?? false);
 
     // Record self-control event for the graph.
+    // Allowlist-mode blocks (state.allowlist === true) are recorded as "blocked"
+    // — visiting a site outside the focus environment is a temptation event,
+    // and merging it with hard-block events keeps the graph schema stable.
     const scEventType = state.lockedIn
       ? "locked_in_block"
       : state.mode === "limit"
@@ -84,6 +87,7 @@ async function handleCheckUrl(hostname: string): Promise<CheckUrlResponse> {
     mode: state.mode === "limit" ? "time-limit" : state.mode,
     remainingSeconds: state.remainingSeconds,
     message: state.message,
+    subtitle: state.subtitle,
     delayed: state.delayed,
     delaySeconds: state.delaySeconds,
   };

@@ -138,6 +138,27 @@ export interface LockedInSession {
   sourceGroupId?: string;
 }
 
+// ─── Allowlist Mode ───────────────────────────────────────────────────────────
+
+/**
+ * Configuration for Allowlist Mode (Focus Environment).
+ *
+ * When enabled, ONLY the specified domains are accessible — every other
+ * hostname is blocked regardless of normal block/limit rules.
+ * Normal rules are not evaluated while this mode is active.
+ *
+ * Domains are normalized using the same pipeline as SiteRule domains
+ * (lowercase, no protocol/path/port/www prefix). Subdomain access is
+ * allowed automatically: if "github.com" is listed, "gist.github.com"
+ * is also permitted.
+ */
+export interface AllowlistMode {
+  /** Master toggle for Focus Environment mode. */
+  enabled: boolean;
+  /** Normalized hostnames the user may access while this mode is active. */
+  allowedDomains: string[];
+}
+
 // ─── Friction Layer ───────────────────────────────────────────────────────────
 
 /**
@@ -215,6 +236,8 @@ export interface Settings {
    * Range: 5–60. Default: 15.
    */
   defaultDelaySeconds: number;
+  /** Allowlist Mode (Focus Environment) configuration. */
+  allowlistMode: AllowlistMode;
 }
 
 // ─── Usage ────────────────────────────────────────────────────────────────────
@@ -349,6 +372,11 @@ export const DEFAULT_RESET_WINDOW: ResetWindowConfig = {
   intervalHours: 24,
 };
 
+export const DEFAULT_ALLOWLIST_MODE: AllowlistMode = {
+  enabled: false,
+  allowedDomains: [],
+};
+
 export const DEFAULT_FRICTION_SETTINGS: FrictionSettings = {
   enabled: true,
   requireReflection: false,
@@ -389,4 +417,5 @@ export const DEFAULT_SETTINGS: Settings = {
   friction: { ...DEFAULT_FRICTION_SETTINGS },
   protectedGate: { ...DEFAULT_PROTECTED_GATE },
   defaultDelaySeconds: 15,
+  allowlistMode: { ...DEFAULT_ALLOWLIST_MODE },
 };

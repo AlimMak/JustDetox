@@ -32,6 +32,12 @@ export const MSG_TIME_UP = "no more, lock back in";
 /** Shown when a domain is accessed outside the active Locked In session's allowed list. */
 export const MSG_LOCKED_IN = "Not part of your session. Stay locked in.";
 
+/** Shown when a domain is blocked by Allowlist Mode (Focus Environment). */
+export const MSG_ALLOWLIST = "Not part of your focus environment.";
+
+/** Subtitle shown alongside MSG_ALLOWLIST. */
+export const MSG_ALLOWLIST_SUBTITLE = "Lock back in.";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type PolicyReason = "site-rule" | "group" | "global-block-list" | "global-defaults";
@@ -71,11 +77,15 @@ export interface BlockedState {
   blocked: boolean;
   /** Human-readable message; set only when blocked === true. */
   message?: string;
+  /** Optional secondary line shown below message in the overlay. */
+  subtitle?: string;
   mode?: RuleMode;
   /** Seconds remaining in the current window; set only for limit-mode rules. */
   remainingSeconds?: number;
   /** True when the block was caused by Locked In Mode (domain not in session allow-list). */
   lockedIn?: boolean;
+  /** True when the block was caused by Allowlist Mode (Focus Environment). */
+  allowlist?: boolean;
   /** True when the site is accessible but Delay Mode requires a countdown first. */
   delayed?: boolean;
   /** Countdown duration in seconds; set only when delayed === true. */
@@ -175,6 +185,22 @@ export function computeBlockedState(
   usage: UsageMap,
   settings: Settings,
 ): BlockedState {
+  // ── Allowlist Mode: evaluated first — overrides Locked In and all other rules ──
+  if (settings.allowlistMode?.enabled) {
+    const host = normalizeHostname(hostname);
+    const isAllowed = settings.allowlistMode.allowedDomains.some((d) =>
+      domainCovers(host, normalizeHostname(d)),
+    );
+    if (isAllowed) return { blocked: false };
+    return {
+      blocked: true,
+      message: MSG_ALLOWLIST,
+      subtitle: MSG_ALLOWLIST_SUBTITLE,
+      mode: "block",
+      allowlist: true,
+    };
+  }
+
   // ── Locked In Mode: evaluated before all other rules ──────────────────────
   const session = settings.lockedInSession;
   if (session?.active && Date.now() < session.endTs) {

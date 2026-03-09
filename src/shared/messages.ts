@@ -32,6 +32,8 @@ export interface CheckUrlResponse {
   remainingSeconds?: number;
   /** Human-readable block reason shown by the content-script overlay. */
   message?: string;
+  /** Optional secondary line shown below message in the block overlay. */
+  subtitle?: string;
   /** True when the site is accessible but Delay Mode requires a countdown first. */
   delayed?: boolean;
   /** Countdown duration in seconds; only set when delayed === true. */

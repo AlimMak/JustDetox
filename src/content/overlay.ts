@@ -56,10 +56,10 @@ const BASE_OVERLAY_STYLE: Partial<CSSStyleDeclaration> = {
 // ─── Block overlay DOM ────────────────────────────────────────────────────────
 
 /**
- * Inject the block overlay with the given block message.
+ * Inject the block overlay with the given block message and optional subtitle.
  * Idempotent — calling a second time before unmounting is a no-op.
  */
-function mountOverlay(message: string): void {
+function mountOverlay(message: string, subtitle?: string): void {
   if (document.getElementById(OVERLAY_ID)) return;
 
   const overlay = document.createElement("div");
@@ -80,6 +80,21 @@ function mountOverlay(message: string): void {
   });
 
   overlay.appendChild(msg);
+
+  if (subtitle) {
+    const sub = document.createElement("p");
+    sub.textContent = subtitle;
+    Object.assign(sub.style, {
+      margin: "12px 0 0",
+      fontSize: "0.75rem",
+      fontWeight: "400",
+      color: "#6b7280",
+      letterSpacing: "0.04em",
+      textAlign: "center",
+    });
+    overlay.appendChild(sub);
+  }
+
   attachInteractionBlock(overlay);
   document.documentElement.appendChild(overlay);
   applyScrollLock();
@@ -282,7 +297,7 @@ async function checkCurrentUrl(): Promise<void> {
     isDelayOverlayVisible = false;
     isOverlayVisible = true;
     unmountDelayOverlay();
-    mountOverlay(response.message);
+    mountOverlay(response.message, response.subtitle);
     return;
   }
 

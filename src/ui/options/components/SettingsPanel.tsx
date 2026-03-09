@@ -44,6 +44,63 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
         </div>
       </div>
 
+      {/* Focus Environment (Allowlist Mode) */}
+      <section className="panel-section">
+        <p className="section-heading">Focus Environment</p>
+        <p className="field__hint" style={{ marginBottom: "var(--sp-4)" }}>
+          When active, only the domains you list below are accessible — everything else is blocked. Normal block and limit rules are bypassed.
+        </p>
+
+        {/* Enable toggle */}
+        <div
+          className="field"
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-4)" }}
+        >
+          <div>
+            <span className="field__label" style={{ marginBottom: 0 }}>Enable Allowlist Mode</span>
+            <p className="field__hint" style={{ marginTop: "var(--sp-1)" }}>
+              Start a strict focus session — only listed sites remain accessible.
+            </p>
+          </div>
+          <label className="toggle">
+            <input
+              className="toggle__input"
+              type="checkbox"
+              checked={settings.allowlistMode.enabled}
+              onChange={(e) =>
+                patch({
+                  allowlistMode: {
+                    ...settings.allowlistMode,
+                    enabled: e.target.checked,
+                  },
+                })
+              }
+            />
+            <span className="toggle__track"><span className="toggle__thumb" /></span>
+          </label>
+        </div>
+
+        {/* Allowed domains list */}
+        <div className="field">
+          <span className="field__label">Allowed domains</span>
+          <DomainPillInput
+            domains={settings.allowlistMode.allowedDomains}
+            onChange={(list) =>
+              patch({
+                allowlistMode: {
+                  ...settings.allowlistMode,
+                  allowedDomains: list,
+                },
+              })
+            }
+            placeholder="github.com, notion.so…"
+          />
+          <p className="field__hint">
+            Subdomains are included automatically (e.g. adding github.com also allows gist.github.com). Paste URLs — they will be normalized.
+          </p>
+        </div>
+      </section>
+
       {/* Reset window */}
       <section className="panel-section">
         <p className="section-heading">Reset window</p>

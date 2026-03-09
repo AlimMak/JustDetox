@@ -4,6 +4,8 @@ import {
   computeBlockedState,
   MSG_HARD_BLOCK,
   MSG_TIME_UP,
+  MSG_ALLOWLIST,
+  MSG_ALLOWLIST_SUBTITLE,
 } from "../policy";
 import type { Settings, UsageMap } from "../types";
 import { DEFAULT_SETTINGS } from "../types";
@@ -496,6 +498,137 @@ describe("computeBlockedState", () => {
       const state = computeBlockedState("youtube.com", makeUsage(), settings);
       expect(state.blocked).toBe(false);
       expect(state.mode).toBe("limit");
+    });
+  });
+});
+
+// ─── Allowlist Mode (Focus Environment) ───────────────────────────────────────
+
+describe("computeBlockedState — allowlist mode", () => {
+  describe("when allowlist mode is disabled", () => {
+    it("applies normal rules when allowlistMode.enabled is false", () => {
+      const settings = makeSettings({
+        allowlistMode: { enabled: false, allowedDomains: ["github.com"] },
+        siteRules: [{ domain: "github.com", mode: "block", enabled: true }],
+      });
+      const state = computeBlockedState("github.com", makeUsage(), settings);
+      // Normal rule applies — should be blocked by the site rule
+      expect(state.blocked).toBe(true);
+      expect(state.message).toBe(MSG_HARD_BLOCK);
+    });
+
+    it("allows all sites when no rules exist and allowlist is disabled", () => {
+      const settings = makeSettings({
+        allowlistMode: { enabled: false, allowedDomains: [] },
+      });
+      expect(computeBlockedState("example.com", makeUsage(), settings).blocked).toBe(false);
+    });
+  });
+
+  describe("when allowlist mode is enabled", () => {
+    it("allows exact match in allowedDomains", () => {
+      const settings = makeSettings({
+        allowlistMode: { enabled: true, allowedDomains: ["github.com"] },
+      });
+      expect(computeBlockedState("github.com", makeUsage(), settings).blocked).toBe(false);
+    });
+
+    it("allows subdomains of an allowed domain", () => {
+      const settings = makeSettings({
+        allowlistMode: { enabled: true, allowedDomains: ["github.com"] },
+      });
+      expect(computeBlockedState("gist.github.com", makeUsage(), settings).blocked).toBe(false);
+      expect(computeBlockedState("docs.github.com", makeUsage(), settings).blocked).toBe(false);
+      expect(computeBlockedState("www.github.com", makeUsage(), settings).blocked).toBe(false);
+    });
+
+    it("blocks domains not in the allowlist", () => {
+      const settings = makeSettings({
+        allowlistMode: { enabled: true, allowedDomains: ["github.com"] },
+      });
+      const state = computeBlockedState("youtube.com", makeUsage(), settings);
+      expect(state.blocked).toBe(true);
+      expect(state.message).toBe(MSG_ALLOWLIST);
+      expect(state.subtitle).toBe(MSG_ALLOWLIST_SUBTITLE);
+      expect(state.allowlist).toBe(true);
+      expect(state.mode).toBe("block");
+    });
+
+    it("blocks all domains when allowedDomains is empty", () => {
+      const settings = makeSettings({
+        allowlistMode: { enabled: true, allowedDomains: [] },
+      });
+      const state = computeBlockedState("google.com", makeUsage(), settings);
+      expect(state.blocked).toBe(true);
+      expect(state.allowlist).toBe(true);
+    });
+
+    it("ignores normal site rules while allowlist mode is active", () => {
+      // A site that has no site rule but is NOT in the allowlist → blocked by allowlist
+      const settings = makeSettings({
+        allowlistMode: { enabled: true, allowedDomains: ["notion.so"] },
+        siteRules: [
+          // This site rule would normally allow time-limited access
+          { domain: "youtube.com", mode: "limit", limitMinutes: 60, enabled: true },
+        ],
+      });
+      const state = computeBlockedState("youtube.com", makeUsage({ "youtube.com": 0 }), settings);
+      // Allowlist blocks it even though there's a limit rule with time remaining
+      expect(state.blocked).toBe(true);
+      expect(state.allowlist).toBe(true);
+    });
+
+    it("ignores globalBlockList for allowed domains", () => {
+      const settings = makeSettings({
+        allowlistMode: { enabled: true, allowedDomains: ["reddit.com"] },
+        globalBlockList: ["reddit.com"],
+      });
+      // Allowlist takes priority — reddit.com is allowed
+      expect(computeBlockedState("reddit.com", makeUsage(), settings).blocked).toBe(false);
+    });
+
+    it("overrides an active Locked In session — allowed domain passes through", () => {
+      const now = Date.now();
+      const settings = makeSettings({
+        allowlistMode: { enabled: true, allowedDomains: ["github.com"] },
+        lockedInSession: {
+          active: true,
+          startTs: now - 1000,
+          endTs: now + 60_000,
+          // Locked In only allows notion.so, but allowlist allows github.com
+          allowedDomains: ["notion.so"],
+        },
+      });
+      // Allowlist is checked first — github.com is allowed
+      expect(computeBlockedState("github.com", makeUsage(), settings).blocked).toBe(false);
+    });
+
+    it("overrides an active Locked In session — non-allowed domain blocked by allowlist, not locked-in", () => {
+      const now = Date.now();
+      const settings = makeSettings({
+        allowlistMode: { enabled: true, allowedDomains: ["github.com"] },
+        lockedInSession: {
+          active: true,
+          startTs: now - 1000,
+          endTs: now + 60_000,
+          allowedDomains: ["notion.so"],
+        },
+      });
+      const state = computeBlockedState("youtube.com", makeUsage(), settings);
+      expect(state.blocked).toBe(true);
+      expect(state.allowlist).toBe(true);
+      // Must NOT be flagged as lockedIn — the allowlist rule fires, not locked-in
+      expect(state.lockedIn).toBeUndefined();
+    });
+
+    it("allows multiple domains from allowedDomains", () => {
+      const settings = makeSettings({
+        allowlistMode: { enabled: true, allowedDomains: ["github.com", "notion.so", "docs.google.com"] },
+      });
+      expect(computeBlockedState("github.com", makeUsage(), settings).blocked).toBe(false);
+      expect(computeBlockedState("notion.so", makeUsage(), settings).blocked).toBe(false);
+      expect(computeBlockedState("docs.google.com", makeUsage(), settings).blocked).toBe(false);
+      expect(computeBlockedState("mail.google.com", makeUsage(), settings).blocked).toBe(true);
     });
   });
 });

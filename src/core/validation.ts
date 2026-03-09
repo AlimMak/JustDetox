@@ -162,6 +162,11 @@ export const protectedGateSchema = z.object({
   requireCooldown: z.boolean().default(true),
 });
 
+export const allowlistModeSchema = z.object({
+  enabled: z.boolean().default(false),
+  allowedDomains: z.array(domainSchema).default([]),
+});
+
 export const settingsSchema = z.object({
   version: z.number().int().min(1).default(SETTINGS_VERSION),
   disabled: z.boolean().default(false),
@@ -184,6 +189,7 @@ export const settingsSchema = z.object({
     requireCooldown: true,
   }),
   defaultDelaySeconds: z.number().int().min(5).max(60).default(15),
+  allowlistMode: allowlistModeSchema.default({ enabled: false, allowedDomains: [] }),
 });
 
 // ─── Usage ────────────────────────────────────────────────────────────────────
