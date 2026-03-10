@@ -9,6 +9,7 @@ export default defineConfig({
       manifest: "public/manifest.json",
       additionalInputs: [
         "src/content/overlay.ts",
+        "src/content/iframeBlocker.ts",
         "src/ui/onboarding/onboarding.html",
       ],
     }),

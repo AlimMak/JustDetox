@@ -34,6 +34,11 @@
       "matches": ["<all_urls>"],
       "js": ["src/content/overlay.ts"],
       "run_at": "document_start"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/iframeBlocker.ts"],
+      "run_at": "document_idle"
     }
   ],
 
