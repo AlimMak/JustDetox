@@ -18,6 +18,7 @@ import { SitesPanel } from "./components/SitesPanel";
 import { ImportExportPanel } from "./components/ImportExportPanel";
 import { AboutPanel } from "./components/AboutPanel";
 import { LockedInPanel } from "./components/LockedInPanel";
+import { CategoryPacksPanel } from "./components/CategoryPacksPanel";
 
 function Options() {
   // Initialise from location.hash so popup deep-links work (#rules, #settings, …)
@@ -64,6 +65,9 @@ function Options() {
           )}
           {section === "reset-window" && (
             <SettingsPanel settings={settings} patch={patch} />
+          )}
+          {section === "packs" && (
+            <CategoryPacksPanel settings={settings} patch={patch} />
           )}
           {section === "import-export" && (
             <ImportExportPanel settings={settings} patch={patch} />

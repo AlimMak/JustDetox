@@ -6,6 +6,7 @@ export type Section =
   | "settings"
   | "groups"
   | "sites"
+  | "packs"
   | "reset-window"
   | "import-export"
   | "about";
@@ -16,6 +17,7 @@ const VALID_SECTIONS: Section[] = [
   "settings",
   "groups",
   "sites",
+  "packs",
   "reset-window",
   "import-export",
   "about",
@@ -26,6 +28,7 @@ const NAV_ITEMS: { id: Section; label: string }[] = [
   { id: "locked-in",    label: "Locked In" },
   { id: "groups",        label: "Groups" },
   { id: "sites",         label: "Sites" },
+  { id: "packs",         label: "Category Packs" },
   { id: "settings",      label: "Settings" },
   { id: "reset-window",  label: "Reset Window" },
   { id: "import-export", label: "Import / Export" },
