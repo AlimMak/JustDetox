@@ -2,11 +2,12 @@
 
 import { useRef, useState } from "react";
 import type { Settings } from "../../../core/types";
-import { exportAll, getSettings, importAll } from "../../../core/storage";
+import { getSettings } from "../../../core/storage";
 import { parseImportJson } from "../../../core/validation";
 import type { ValidatedFullExport } from "../../../core/validation";
 import { computeImportDiff } from "../../../core/protectedGate";
 import { useFriction } from "../context/FrictionContext";
+import { sendBackgroundCommand } from "../utils/backgroundCommand";
 
 interface ImportExportPanelProps {
   settings: Settings;
@@ -22,11 +23,23 @@ interface ImportPreview {
   reductions: string[];
 }
 
+function importReductions(current: Settings, data: ValidatedFullExport): string[] {
+  const reductions = computeImportDiff(current, data.settings as Settings).reductions;
+  if (data.usage !== undefined) {
+    reductions.push("Current usage and progress will be replaced; active limits may reset");
+  } else if (data.temptations !== undefined || data.dopamine !== undefined ||
+    data.selfControl !== undefined || data.progressHistory !== undefined) {
+    reductions.push("Current progress data will be replaced");
+  }
+  return reductions;
+}
+
 export function ImportExportPanel({ patch }: ImportExportPanelProps) {
   const { askFriction } = useFriction();
   const fileRef = useRef<HTMLInputElement>(null);
   const [exportMode, setExportMode] = useState<ExportMode>("settings");
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importDone, setImportDone] = useState(false);
@@ -34,18 +47,24 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
 
   const handleExport = async () => {
     setExporting(true);
+    setExportError(null);
     try {
       const date = new Date().toISOString().slice(0, 10);
       let json: string;
       let filename: string;
+      const result = await sendBackgroundCommand({ type: "EXPORT_ALL" });
+      if (!result.ok || typeof result.json !== "string") {
+        setExportError(result.error ?? "Could not prepare the backup. Try again.");
+        return;
+      }
 
       if (exportMode === "full") {
-        json = await exportAll();
+        json = result.json;
         filename = `justdetox-backup-${date}.json`;
       } else {
-        const s = await getSettings();
+        const backup = JSON.parse(result.json) as { exportedAt: string; settings: Settings };
         json = JSON.stringify(
-          { exportedAt: new Date().toISOString(), settings: s },
+          { exportedAt: backup.exportedAt, settings: backup.settings },
           null,
           2,
         );
@@ -59,6 +78,8 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "Could not prepare the backup.");
     } finally {
       setExporting(false);
     }
@@ -80,11 +101,7 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
     } else {
       // Compute protection diff relative to current settings.
       const current = await getSettings();
-      const diff = computeImportDiff(
-        current,
-        result.data.settings as Settings,
-      );
-      setPreview({ json: text, data: result.data, reductions: diff.reductions });
+      setPreview({ json: text, data: result.data, reductions: importReductions(current, result.data) });
     }
 
     if (fileRef.current) fileRef.current.value = "";
@@ -93,28 +110,32 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
   const handleApply = async () => {
     if (!preview) return;
 
-    // If the import reduces protection, require gate confirmation.
-    if (preview.reductions.length > 0) {
+    // Recheck against fresh settings in case they changed after preview.
+    const freshSettings = await getSettings();
+    const reductions = importReductions(freshSettings, preview.data);
+    if (reductions.length > 0) {
       const ok = await askFriction({
         actionType: "import-reduces-protection",
-        label: `Import — ${preview.reductions.length} protection reduction${preview.reductions.length !== 1 ? "s" : ""}`,
-        context: preview.reductions,
+        label: `Import — ${reductions.length} protection reduction${reductions.length !== 1 ? "s" : ""}`,
+        context: reductions,
       });
       if (!ok) return;
     }
 
     setApplying(true);
     try {
-      const result = await importAll(preview.json);
+      const result = await sendBackgroundCommand({ type: "IMPORT_ALL", json: preview.json });
       if (result.ok) {
         const fresh = await getSettings();
         patch(() => fresh);
         setPreview(null);
         setImportDone(true);
       } else {
-        setImportError(result.error);
+        setImportError(result.error ?? "Could not restore the backup.");
         setPreview(null);
       }
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Could not restore the backup.");
     } finally {
       setApplying(false);
     }
@@ -156,8 +177,8 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
 
         <p style={{ fontSize: "var(--text-sm)", color: "var(--text-3)", marginBottom: "var(--sp-4)" }}>
           {exportMode === "settings"
-            ? "Downloads your rules and configuration. Safe to share or migrate between devices."
-            : "Downloads settings plus all tracked usage data. Useful for full device backups."}
+            ? "Downloads your rules and configuration without browsing-time history."
+            : "Downloads settings, current usage, score, and local progress history."}
         </p>
 
         <button
@@ -167,6 +188,7 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
         >
           {exporting ? "Exporting…" : "Download"}
         </button>
+        {exportError && <p className="field__error" role="alert">{exportError}</p>}
       </section>
 
       {/* Import */}

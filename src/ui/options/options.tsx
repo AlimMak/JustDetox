@@ -10,7 +10,8 @@ import { useFrictionGate } from "./hooks/useFrictionGate";
 import { FrictionContext } from "./context/FrictionContext";
 import { FrictionGate } from "../components/FrictionGate";
 import { ProtectedGate } from "../components/ProtectedGate";
-import { Sidebar, resolveInitialSection, type Section } from "./components/Sidebar";
+import { Sidebar, type Section } from "./components/Sidebar";
+import { resolveInitialSection } from "./utils/navigation";
 import { DashboardPanel } from "./components/DashboardPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { GroupsPanel } from "./components/GroupsPanel";
@@ -20,9 +21,10 @@ import { AboutPanel } from "./components/AboutPanel";
 import { LockedInPanel } from "./components/LockedInPanel";
 import { CategoryPacksPanel } from "./components/CategoryPacksPanel";
 
-function Options() {
+export function Options() {
   // Initialise from location.hash so popup deep-links work (#rules, #settings, …)
   const [section, setSection] = useState<Section>(resolveInitialSection);
+  const [focusSite, setFocusSite] = useState<{ hostname: string; request: number } | null>(null);
   const { settings, loading, patch } = useSettings();
   const { askFriction, gateState, gateHandlers } = useFrictionGate(
     settings.friction,
@@ -33,6 +35,11 @@ function Options() {
     settings.lockedInSession?.active && Date.now() < (settings.lockedInSession?.endTs ?? 0),
   );
 
+  const openSite = (hostname: string) => {
+    setFocusSite((previous) => ({ hostname, request: (previous?.request ?? 0) + 1 }));
+    setSection("sites");
+  };
+
   if (loading) {
     return <div className="options-loading">Loading…</div>;
   }
@@ -42,14 +49,14 @@ function Options() {
       <div className="options-root">
         <Sidebar
           active={section}
-          onSelect={setSection}
+          onSelect={(next) => { setFocusSite(null); setSection(next); }}
           extensionDisabled={settings.disabled}
           lockedInActive={lockedInActive}
         />
 
         <main className="options-panel">
           {section === "rules" && (
-            <DashboardPanel settings={settings} patch={patch} lockedInActive={lockedInActive} />
+            <DashboardPanel settings={settings} patch={patch} lockedInActive={lockedInActive} onOpenSite={openSite} />
           )}
           {section === "locked-in" && (
             <LockedInPanel settings={settings} patch={patch} />
@@ -61,7 +68,7 @@ function Options() {
             <GroupsPanel settings={settings} patch={patch} />
           )}
           {section === "sites" && (
-            <SitesPanel settings={settings} patch={patch} />
+            <SitesPanel settings={settings} patch={patch} focusSite={focusSite} />
           )}
           {section === "reset-window" && (
             <SettingsPanel settings={settings} patch={patch} />

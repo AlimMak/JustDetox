@@ -17,7 +17,7 @@
  */
 
 import type { Settings, UsageMap, RuleMode, ScheduleWindow } from "./types";
-import { normalizeHostname, domainCovers, sumUsageUnder } from "./match";
+import { normalizeHostname, domainCovers } from "./match";
 import { getOrBuildIndex, resolveDomainRule } from "./ruleIndex";
 import { isAnyScheduleActive } from "./schedule";
 
@@ -90,6 +90,58 @@ export interface BlockedState {
   delayed?: boolean;
   /** Countdown duration in seconds; set only when delayed === true. */
   delaySeconds?: number;
+  /** Human-readable source of the rule shown on the block screen. */
+  source?: string;
+  /** Next time the current decision may change without a settings edit. */
+  nextCheckTs?: number;
+  /** Description of that time, shown when the site is blocked. */
+  nextChangeLabel?: string;
+}
+
+/** Find the next weekly schedule boundary that changes the combined active state. */
+function nextScheduleChange(schedules: ScheduleWindow[], now: number): number | undefined {
+  if (schedules.length === 0) return undefined;
+  const activeNow = isAnyScheduleActive(schedules, new Date(now));
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  const boundaries: number[] = [];
+
+  // Include yesterday for an overnight window ending today. A weekly
+  // schedule repeats within seven days; the extra day covers its final end.
+  for (let offset = -1; offset <= 8; offset++) {
+    const day = new Date(midnight);
+    day.setDate(midnight.getDate() + offset);
+    for (const schedule of schedules) {
+      if (!schedule.enabled || !schedule.days.includes(day.getDay())) continue;
+      const start = new Date(day);
+      start.setHours(0, schedule.startMinutes, 0, 0);
+      const end = new Date(day);
+      if (schedule.endMinutes < schedule.startMinutes) end.setDate(end.getDate() + 1);
+      end.setHours(0, schedule.endMinutes, 0, 0);
+      if (start.getTime() > now) boundaries.push(start.getTime());
+      if (end.getTime() > now) boundaries.push(end.getTime());
+    }
+  }
+
+  for (const boundary of [...new Set(boundaries)].sort((a, b) => a - b)) {
+    if (isAnyScheduleActive(schedules, new Date(boundary + 1_000)) !== activeNow) {
+      return boundary;
+    }
+  }
+  return undefined;
+}
+
+function policySource(policy: EffectivePolicy, settings: Settings): string {
+  switch (policy.reason) {
+    case "site-rule":
+      return `Site rule: ${policy.configuredDomain ?? "this site"}`;
+    case "group":
+      return `Group: ${settings.groups.find((g) => g.id === policy.groupId)?.name ?? "site group"}`;
+    case "global-block-list":
+      return "Always blocked list";
+    case "global-defaults":
+      return "Default rule";
+  }
 }
 
 // ─── resolveEffectivePolicy ───────────────────────────────────────────────────
@@ -185,6 +237,7 @@ export function computeBlockedState(
   usage: UsageMap,
   settings: Settings,
 ): BlockedState {
+  const now = Date.now();
   // ── Allowlist Mode: evaluated first — overrides Locked In and all other rules ──
   if (settings.allowlistMode?.enabled) {
     const host = normalizeHostname(hostname);
@@ -198,12 +251,13 @@ export function computeBlockedState(
       subtitle: MSG_ALLOWLIST_SUBTITLE,
       mode: "block",
       allowlist: true,
+      source: "Focus Environment",
     };
   }
 
   // ── Locked In Mode: evaluated before all other rules ──────────────────────
   const session = settings.lockedInSession;
-  if (session?.active && Date.now() < session.endTs) {
+  if (session?.active && now < session.endTs) {
     const host = normalizeHostname(hostname);
     const isAllowed = session.allowedDomains.some((d) =>
       domainCovers(host, normalizeHostname(d)),
@@ -211,36 +265,69 @@ export function computeBlockedState(
 
     if (!isAllowed) {
       // Domain is not in the session's allowed list — block unconditionally.
-      return { blocked: true, message: MSG_LOCKED_IN, mode: "block", lockedIn: true };
+      return {
+        blocked: true,
+        message: MSG_LOCKED_IN,
+        mode: "block",
+        lockedIn: true,
+        source: "Locked In Mode",
+        nextCheckTs: session.endTs,
+        nextChangeLabel: "Session ends",
+      };
     }
 
     // Domain is in the allowed list — grant access, bypassing all other rules.
     // Time tracking still accumulates normally via the tracker.
-    return { blocked: false };
+    return { blocked: false, nextCheckTs: session.endTs };
   }
 
   const policy = resolveEffectivePolicy(hostname, settings);
   if (!policy) return { blocked: false };
+  const source = policySource(policy, settings);
+  const scheduleChangeTs = policy.schedule
+    ? nextScheduleChange(policy.schedule, now)
+    : undefined;
 
   // Schedule gate: if the matched rule has schedules and none is currently
   // active, skip the rule for this time window (site is unrestricted).
   if (policy.schedule && policy.schedule.length > 0) {
-    if (!isAnyScheduleActive(policy.schedule, new Date())) {
-      return { blocked: false };
+    if (!isAnyScheduleActive(policy.schedule, new Date(now))) {
+      return { blocked: false, nextCheckTs: scheduleChangeTs };
     }
   }
 
   if (policy.mode === "block") {
-    return { blocked: true, message: MSG_HARD_BLOCK, mode: "block" };
+    return {
+      blocked: true,
+      message: MSG_HARD_BLOCK,
+      mode: "block",
+      source,
+      nextCheckTs: scheduleChangeTs,
+      nextChangeLabel: scheduleChangeTs ? "Schedule ends" : undefined,
+    };
   }
 
   // mode === "limit"
   const limitSeconds = policy.limitSeconds ?? 0;
-  const usedSeconds = resolveUsedSeconds(hostname, usage, policy, settings);
+  const entries = relevantUsageEntries(hostname, usage, policy, settings, now);
+  const usedSeconds = entries.reduce((sum, entry) => sum + entry.seconds, 0);
   const remaining = Math.max(0, limitSeconds - usedSeconds);
 
   if (remaining <= 0) {
-    return { blocked: true, message: MSG_TIME_UP, mode: "limit", remainingSeconds: 0 };
+    const resetTs = nextTimeBudgetReset(entries, limitSeconds);
+    const scheduleFirst = scheduleChangeTs !== undefined &&
+      (resetTs === undefined || scheduleChangeTs < resetTs);
+    return {
+      blocked: true,
+      message: MSG_TIME_UP,
+      mode: "limit",
+      remainingSeconds: 0,
+      source,
+      nextCheckTs: scheduleFirst ? scheduleChangeTs : resetTs,
+      nextChangeLabel: scheduleFirst
+        ? "Schedule ends"
+        : resetTs !== undefined ? "Time becomes available" : undefined,
+    };
   }
 
   // Delay Mode: show countdown before granting access (block-mode sites are never delayed).
@@ -251,10 +338,16 @@ export function computeBlockedState(
       remainingSeconds: remaining,
       delayed: true,
       delaySeconds: policy.delaySeconds ?? 15,
+      nextCheckTs: scheduleChangeTs,
     };
   }
 
-  return { blocked: false, mode: "limit", remainingSeconds: remaining };
+  return {
+    blocked: false,
+    mode: "limit",
+    remainingSeconds: remaining,
+    nextCheckTs: scheduleChangeTs,
+  };
 }
 
 // ─── Internal: usage resolution ──────────────────────────────────────────────
@@ -266,23 +359,52 @@ export function computeBlockedState(
  * - group:     sum all usage keys that fall under any domain in the group.
  * - global-defaults: look up the exact hostname only (each domain is independent).
  */
-function resolveUsedSeconds(
+interface UsageEntry {
+  seconds: number;
+  resetTs: number;
+}
+
+function relevantUsageEntries(
   hostname: string,
   usage: UsageMap,
   policy: EffectivePolicy,
   settings: Settings,
-): number {
-  if (policy.reason === "site-rule" && policy.configuredDomain) {
-    return sumUsageUnder(policy.configuredDomain, usage);
-  }
+  now: number,
+): UsageEntry[] {
+  const normalizedHost = normalizeHostname(hostname);
+  const groupDomains = policy.reason === "group"
+    ? settings.groups.find((g) => g.id === policy.groupId)?.domains ?? []
+    : [];
+  const intervalMs = settings.resetWindow.intervalHours * 3_600_000;
+  const entries: UsageEntry[] = [];
 
-  if (policy.reason === "group" && policy.groupId) {
-    const group = settings.groups.find((g) => g.id === policy.groupId);
-    if (group) {
-      return group.domains.reduce((sum, d) => sum + sumUsageUnder(d, usage), 0);
+  for (const [domain, record] of Object.entries(usage)) {
+    const normalizedDomain = normalizeHostname(domain);
+    let relevant = false;
+    if (policy.reason === "site-rule" && policy.configuredDomain) {
+      relevant = domainCovers(normalizedDomain, normalizeHostname(policy.configuredDomain));
+    } else if (policy.reason === "group") {
+      // A domain may match more than one configured group member; count it once.
+      relevant = groupDomains.some((member) =>
+        domainCovers(normalizedDomain, normalizeHostname(member)));
+    } else {
+      relevant = normalizedDomain === normalizedHost;
     }
-  }
+    if (!relevant) continue;
 
-  // global-defaults (and any unexpected reason): per-hostname only
-  return usage[normalizeHostname(hostname)]?.activeSeconds ?? 0;
+    const resetTs = record.windowStartTs + intervalMs;
+    if (resetTs <= now) continue;
+    entries.push({ seconds: record.activeSeconds, resetTs });
+  }
+  return entries;
+}
+
+/** When enough independent usage buckets expire to restore time under the limit. */
+function nextTimeBudgetReset(entries: UsageEntry[], limitSeconds: number): number | undefined {
+  let usedSeconds = entries.reduce((sum, entry) => sum + entry.seconds, 0);
+  for (const entry of [...entries].sort((a, b) => a.resetTs - b.resetTs)) {
+    usedSeconds -= entry.seconds;
+    if (usedSeconds < limitSeconds) return entry.resetTs;
+  }
+  return undefined;
 }

@@ -480,6 +480,100 @@ html, body {
   color: var(--border-strong);
 }
 
+.dopamine-score-breakdown {
+  display: grid;
+  gap: var(--sp-2);
+  max-width: 430px;
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.dopamine-score-breakdown > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.dopamine-score-breakdown strong {
+  color: var(--text-2);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-item__link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text-2);
+}
+
+.bar-item__link:hover,
+.bar-item__link:focus-visible {
+  color: var(--text-1);
+  text-decoration: underline;
+}
+
+.progress-history {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.progress-history__row {
+  display: grid;
+  grid-template-columns: 92px minmax(48px, 1fr) 70px 140px;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--text-xs);
+}
+
+.progress-history__date,
+.progress-history__value {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-history__track {
+  height: 5px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+
+.progress-history__fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--border-focus);
+}
+
+.progress-history__value {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.progress-history__meta {
+  color: var(--text-3);
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .progress-history__row {
+    grid-template-columns: 75px minmax(35px, 1fr) 60px;
+    gap: var(--sp-2);
+  }
+  .progress-history__meta {
+    grid-column: 1 / -1;
+    text-align: left;
+    padding-left: 75px;
+  }
+}
+
 /* ─── Self-Control Graph section ─────────────────────────────────────────── */
 
 .scg-header {

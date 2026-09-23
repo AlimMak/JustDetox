@@ -170,6 +170,7 @@ export const allowlistModeSchema = z.object({
 export const settingsSchema = z.object({
   version: z.number().int().min(1).default(SETTINGS_VERSION),
   disabled: z.boolean().default(false),
+  pauseWhenIdle: z.boolean().default(false),
   siteRules: z.array(siteRuleSchema).default([]),
   groups: z.array(siteGroupSchema).default([]),
   globalBlockList: z.array(domainSchema).default([]),
@@ -258,8 +259,24 @@ export const selfControlDataSchema = z.object({
 export const fullExportSchema = z.object({
   exportedAt: z.string().optional(),
   settings: settingsSchema,
-  usage: usageMapSchema,
+  usage: usageMapSchema.optional(),
   temptations: temptationMapSchema.optional(),
+  dopamine: dopamineScoreDataSchema.optional(),
+  selfControl: selfControlDataSchema.optional(),
+  progressHistory: z.array(z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    activeSeconds: z.number().finite().min(0),
+    blockedAttempts: z.number().int().min(0),
+    score: z.number().finite().min(0).max(100).nullable(),
+  })).max(30).optional(),
+}).superRefine((backup, ctx) => {
+  if (backup.settings.allowlistMode.enabled && backup.settings.allowlistMode.allowedDomains.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["settings", "allowlistMode", "allowedDomains"],
+      message: "Focus Environment needs at least one allowed domain",
+    });
+  }
 });
 
 // ─── Inferred types (mirror of src/core/types.ts via Zod) ────────────────────

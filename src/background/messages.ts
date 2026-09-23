@@ -6,12 +6,24 @@
  * stays minimal and this logic is independently testable.
  */
 
-import { getSettings, getUsage } from "../core/storage";
+import { exportAll, getSettings, getUsage, importAll } from "../core/storage";
 import { computeBlockedState } from "../core/policy";
 import { incrementAttempt } from "../core/temptation";
 import { onDelayCompleted } from "../core/dopamine";
 import { recordEvent } from "../core/selfControl";
-import type { ExtensionMessage, CheckUrlResponse } from "../shared/messages";
+import { clearTrackedData } from "../core/history";
+import { resetTrackingBaseline } from "./tracker";
+import type {
+  ExtensionMessage,
+  CheckUrlResponse,
+  CheckUrlContext,
+  ClearTrackedDataResponse,
+  ExportAllResponse,
+} from "../shared/messages";
+
+function isOptionsSender(sender: chrome.runtime.MessageSender): boolean {
+  return sender.url?.split(/[?#]/)[0] === chrome.runtime.getURL("src/ui/options/options.html");
+}
 
 /**
  * Register all content-script message handlers.
@@ -21,12 +33,69 @@ export function registerMessages(): void {
   chrome.runtime.onMessage.addListener(
     (
       message: ExtensionMessage,
-      _sender: chrome.runtime.MessageSender,
-      sendResponse: (response: CheckUrlResponse | null) => void,
+      sender: chrome.runtime.MessageSender,
+      sendResponse: (
+        response: CheckUrlResponse | ClearTrackedDataResponse | ExportAllResponse | null,
+      ) => void,
     ) => {
       if (message.type === "CHECK_URL") {
-        handleCheckUrl(message.hostname).then(sendResponse);
+        handleCheckUrl(message.hostname, message.context ?? "navigation")
+          .then(sendResponse)
+          .catch((err: unknown) => {
+            // eslint-disable-next-line no-console
+            console.error("[JustDetox] CHECK_URL handler failed:", err);
+            sendResponse({ blocked: false });
+          });
         return true; // keep port open for async response
+      }
+
+      if (message.type === "CLEAR_TRACKED_DATA") {
+        if (!isOptionsSender(sender)) {
+          sendResponse({ ok: false, error: "This action is only available in Settings." });
+          return false;
+        }
+        resetTrackingBaseline()
+          .then(() => clearTrackedData())
+          .then(() => sendResponse({ ok: true }))
+          .catch((err: unknown) => {
+            // eslint-disable-next-line no-console
+            console.error("[JustDetox] CLEAR_TRACKED_DATA handler failed:", err);
+            sendResponse({ ok: false, error: "Could not clear tracked data." });
+          });
+        return true;
+      }
+
+      if (message.type === "IMPORT_ALL") {
+        if (!isOptionsSender(sender)) {
+          sendResponse({ ok: false, error: "This action is only available in Settings." });
+          return false;
+        }
+        resetTrackingBaseline()
+          .then(() => importAll(message.json))
+          .then((result) => sendResponse(result.ok
+            ? { ok: true }
+            : { ok: false, error: result.error }))
+          .catch((err: unknown) => {
+            // eslint-disable-next-line no-console
+            console.error("[JustDetox] IMPORT_ALL handler failed:", err);
+            sendResponse({ ok: false, error: "Could not import backup." });
+          });
+        return true;
+      }
+
+      if (message.type === "EXPORT_ALL") {
+        if (!isOptionsSender(sender)) {
+          sendResponse({ ok: false, error: "This action is only available in Settings." });
+          return false;
+        }
+        exportAll()
+          .then((json) => sendResponse({ ok: true, json }))
+          .catch((err: unknown) => {
+            // eslint-disable-next-line no-console
+            console.error("[JustDetox] EXPORT_ALL handler failed:", err);
+            sendResponse({ ok: false, error: "Could not export backup." });
+          });
+        return true;
       }
 
       // RECORD_TIME: time tracking is handled by tracker.ts via browser tab
@@ -51,7 +120,10 @@ export function registerMessages(): void {
 
 // ─── CHECK_URL ────────────────────────────────────────────────────────────────
 
-async function handleCheckUrl(hostname: string): Promise<CheckUrlResponse> {
+async function handleCheckUrl(
+  hostname: string,
+  context: CheckUrlContext,
+): Promise<CheckUrlResponse> {
   const [settings, usage] = await Promise.all([getSettings(), getUsage()]);
 
   // Master kill-switch: extension disabled → never block anything.
@@ -60,7 +132,7 @@ async function handleCheckUrl(hostname: string): Promise<CheckUrlResponse> {
   const state = computeBlockedState(hostname, usage, settings);
 
   // Record a temptation attempt whenever an overlay will be shown.
-  if (state.blocked) {
+  if (state.blocked && context === "navigation") {
     // Fire-and-forget: do not delay the CHECK_URL response on storage writes.
     void incrementAttempt(hostname, state.lockedIn ?? false);
 
@@ -77,7 +149,7 @@ async function handleCheckUrl(hostname: string): Promise<CheckUrlResponse> {
   }
 
   // Record delay_triggered event when a Delay Mode countdown is shown.
-  if (state.delayed) {
+  if (state.delayed && context === "navigation") {
     void recordEvent({ domain: hostname, type: "delay_triggered" });
   }
 
@@ -90,5 +162,8 @@ async function handleCheckUrl(hostname: string): Promise<CheckUrlResponse> {
     subtitle: state.subtitle,
     delayed: state.delayed,
     delaySeconds: state.delaySeconds,
+    source: state.source,
+    nextCheckTs: state.nextCheckTs,
+    nextChangeLabel: state.nextChangeLabel,
   };
 }

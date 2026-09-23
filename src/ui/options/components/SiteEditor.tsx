@@ -1,11 +1,12 @@
 // FILE: src/ui/options/components/SiteEditor.tsx
 
 import { useState } from "react";
-import type { SiteRule, RuleMode, ScheduleWindow } from "../../../core/types";
+import type { Settings, SiteRule, RuleMode, ScheduleWindow } from "../../../core/types";
 import { sanitizeDomain, isValidDomain } from "../../../core/validation";
 import { Modal } from "./Modal";
 import { ScheduleEditor } from "./ScheduleEditor";
 import { useFriction } from "../context/FrictionContext";
+import { newSiteWeakeningReasons, siteWeakeningReasons } from "../utils/protection";
 
 interface SiteEditorProps {
   rule: SiteRule | null; // null = create new
@@ -15,6 +16,8 @@ interface SiteEditorProps {
   attemptCount?: number;
   /** Global default delay seconds (used as initial value for new rules). */
   defaultDelaySeconds?: number;
+  initialDomain?: string;
+  settings: Settings;
 }
 
 interface FormErrors {
@@ -24,9 +27,9 @@ interface FormErrors {
   schedule?: string;
 }
 
-export function SiteEditor({ rule, onSave, onClose, attemptCount, defaultDelaySeconds = 15 }: SiteEditorProps) {
+export function SiteEditor({ rule, onSave, onClose, attemptCount, defaultDelaySeconds = 15, initialDomain = "", settings }: SiteEditorProps) {
   const isNew = rule === null;
-  const [domain, setDomain] = useState(rule?.domain ?? "");
+  const [domain, setDomain] = useState(rule?.domain ?? initialDomain);
   const [mode, setMode] = useState<RuleMode>(rule?.mode ?? "block");
   const [limitMinutes, setLimitMinutes] = useState(String(rule?.limitMinutes ?? 30));
   const [enabled, setEnabled] = useState(rule?.enabled ?? true);
@@ -76,27 +79,17 @@ export function SiteEditor({ rule, onSave, onClose, attemptCount, defaultDelaySe
       schedule: schedules.length > 0 ? schedules : undefined,
     };
 
-    // Friction checks only apply when editing an existing rule, not creating.
-    if (!isNew && rule !== null) {
-      const wasBlock = rule.mode === "block";
-      const newLimitMins = parseInt(limitMinutes, 10);
-      const oldLimitMins = rule.limitMinutes ?? 0;
-
-      if (wasBlock && mode === "limit") {
-        const ok = await askFriction({
-          actionType: "rule-block-to-limit",
-          label: `${saved.domain} — block → time limit`,
-          domain: saved.domain,
-        });
-        if (!ok) return;
-      } else if (rule.mode === "limit" && mode === "limit" && newLimitMins > oldLimitMins) {
-        const ok = await askFriction({
-          actionType: "rule-limit-increase",
-          label: `${saved.domain} — limit ${oldLimitMins}min → ${newLimitMins}min`,
-          domain: saved.domain,
-        });
-        if (!ok) return;
-      }
+    const reasons = rule === null
+      ? newSiteWeakeningReasons(saved, settings)
+      : siteWeakeningReasons(rule, saved, defaultDelaySeconds);
+    if (reasons.length > 0) {
+      const ok = await askFriction({
+        actionType: "weaken-site-rule",
+        label: `${saved.domain} — site rule changes`,
+        domain: saved.domain,
+        context: reasons,
+      });
+      if (!ok) return;
     }
 
     onSave(saved);

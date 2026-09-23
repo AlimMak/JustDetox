@@ -25,7 +25,20 @@ export type FrictionActionType =
   | "rule-limit-increase"
   | "group-limit-increase"
   | "remove-domain"
-  | "import-reduces-protection";
+  | "import-reduces-protection"
+  | "disable-focus-environment"
+  | "weaken-focus-environment"
+  | "remove-always-blocked"
+  | "weaken-protected-gate"
+  | "end-locked-in-session"
+  | "rule-schedule-reduction"
+  | "group-schedule-reduction"
+  | "weaken-site-rule"
+  | "weaken-group-rule"
+  | "clear-tracked-data"
+  | "shorten-reset-window"
+  | "weaken-friction-layer"
+  | "pause-tracking-when-idle";
 
 // ─── Payload ──────────────────────────────────────────────────────────────────
 
@@ -130,5 +143,18 @@ export function describeActionType(actionType: FrictionActionType): string {
     case "group-limit-increase":        return "Increase a time limit";
     case "remove-domain":               return "Remove a domain from a rule";
     case "import-reduces-protection":   return "Import settings that reduce protection";
+    case "disable-focus-environment": return "Disable Focus Environment";
+    case "weaken-focus-environment": return "Change Focus Environment access";
+    case "remove-always-blocked": return "Remove an always-blocked site";
+    case "weaken-protected-gate": return "Weaken the Protected Gate";
+    case "end-locked-in-session": return "End a Locked In session early";
+    case "rule-schedule-reduction": return "Reduce a site rule's schedule";
+    case "group-schedule-reduction": return "Reduce a group's schedule";
+    case "weaken-site-rule": return "Weaken a site rule";
+    case "weaken-group-rule": return "Weaken a group rule";
+    case "clear-tracked-data": return "Clear tracked data and reset limits";
+    case "shorten-reset-window": return "Shorten the usage reset window";
+    case "weaken-friction-layer": return "Weaken the Friction Layer";
+    case "pause-tracking-when-idle": return "Pause tracking while the device is idle";
   }
 }

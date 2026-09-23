@@ -142,6 +142,73 @@
   color: var(--text-danger);
 }
 
+/* ─── Quick actions ─────────────────────────────────────────────────────────── */
+
+.popup-quick-actions {
+  border-top: 1px solid var(--border);
+  padding-top: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.popup-quick-heading {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.popup-quick-block {
+  width: 100%;
+}
+
+.popup-quick-limit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+
+.popup-quick-limit-controls {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.popup-quick-limit-controls .input {
+  min-width: 0;
+  flex: 1;
+}
+
+.popup-quick-limit-controls .btn {
+  flex: 1;
+}
+
+.popup-quick-edit {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+.popup-quick-note,
+.popup-quick-success,
+.popup-quick-error {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--lh-base);
+}
+
+.popup-quick-note {
+  color: var(--text-3);
+}
+.popup-quick-success {
+  color: var(--text-2);
+}
+.popup-quick-error {
+  color: var(--text-danger);
+}
+
 /* ─── Locked In pill (header) ────────────────────────────────────────────────── */
 
 .popup-locked-in-pill {

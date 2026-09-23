@@ -22,9 +22,11 @@
  */
 
 import { getSettings, getUsage, getTemptations, getDopamineScore, setDopamineScore } from "./storage";
-import type { DopamineScoreData } from "./types";
+import type { DopamineScoreData, Settings, UsageMap } from "./types";
 import { DEFAULT_DOPAMINE_SCORE } from "./types";
 import { sumUsageUnder } from "./match";
+import { recordDailyScore } from "./history";
+import { resolveEffectivePolicy } from "./policy";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -82,6 +84,13 @@ export function calculateScore(inputs: ScoreInputs): ScoreResult {
   };
 }
 
+/** Count each tracked second once, using the rule that actually wins for its domain. */
+export function limitedUsageMinutes(settings: Settings, usage: UsageMap): number {
+  const seconds = Object.entries(usage).reduce((total, [domain, record]) =>
+    total + (resolveEffectivePolicy(domain, settings)?.mode === "limit" ? record.activeSeconds : 0), 0);
+  return seconds / 60;
+}
+
 // ─── Core: compute from storage and persist ────────────────────────────────────
 
 async function computeAndSave(): Promise<void> {
@@ -111,20 +120,7 @@ async function computeAndSave(): Promise<void> {
     0,
   );
 
-  // Seconds on time-limited site rules.
-  const limitedRuleSeconds = settings.siteRules
-    .filter((r) => r.mode === "limit" && r.enabled)
-    .reduce((sum, r) => sum + sumUsageUnder(r.domain, usage), 0);
-
-  // Seconds on time-limited groups.
-  const limitedGroupSeconds = settings.groups
-    .filter((g) => g.mode === "limit" && g.enabled)
-    .reduce(
-      (sum, g) => sum + g.domains.reduce((s, d) => s + sumUsageUnder(d, usage), 0),
-      0,
-    );
-
-  const totalLimitedMinutes = (limitedRuleSeconds + limitedGroupSeconds) / 60;
+  const totalLimitedMinutes = limitedUsageMinutes(settings, usage);
 
   // Count site rules that have hit their limit.
   const limitHitCount = settings.siteRules
@@ -145,6 +141,7 @@ async function computeAndSave(): Promise<void> {
   });
 
   await setDopamineScore({ ...base, score, scoreBreakdown: breakdown });
+  await recordDailyScore(score);
 }
 
 // ─── Public: trigger recalculation (debounced) ────────────────────────────────

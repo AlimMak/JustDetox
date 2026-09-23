@@ -6,13 +6,20 @@ A free, open-source Chrome extension (Manifest V3) that blocks or time-limits we
 
 ## Features
 
-- **Block mode** — hard-block a site entirely; overlay shown on every visit
+- **Block mode** — cover a blocked site with a full-page overlay
 - **Time-limit mode** — allow N minutes per reset window; block when quota is exhausted
 - **Groups** — bundle sites into a shared time pool (e.g. "Social Media = 60 min/day")
 - **Per-site overrides** — granular rules on top of groups
-- **Master disable toggle** — pause all blocking without touching your rules
-- Usage reset window: 6 h / 12 h / 24 h / 48 h (configurable)
-- Minimal permissions: `storage`, `tabs`, `alarms` only — no `<all_urls>` host permissions
+- **Schedules and Delay Mode** — apply rules during chosen hours and add a short pause before limited sites open
+- **Locked In and Focus Environment** — timed or ongoing sessions limited to chosen sites
+- **Category packs** — start with common distractions and adjust the generated rules
+- **Local progress** — current-window usage, blocked attempts, score details, and 30 days of daily totals
+- **Quick popup actions** — block or limit the active site without opening the full settings page
+- **Protection gates** — optional cooldown and confirmation before weakening rules
+- **Master disable toggle** — pause blocking and tracking without deleting rules
+- Usage reset window: 1–168 h (presets and custom value)
+- Device-idle awareness: tracking pauses on screen lock; optional setting pauses after five minutes without input
+- Permissions: `storage`, `tabs`, `alarms`, `idle`; no `host_permissions` entry
 - No accounts, no telemetry — all data stays in your browser
 - Dark theme UI built with React + TypeScript
 
@@ -53,11 +60,12 @@ This outputs the unpacked extension to `dist/`.
 
 | Permission | Why it is needed |
 |------------|-----------------|
-| `storage` | Persist blocking rules and per-domain usage counters in `chrome.storage.local` |
+| `storage` | Persist rules, usage, and local progress in `chrome.storage.local` |
 | `tabs` | Read the active tab's URL to enforce rules; open the options/onboarding page on install |
-| `alarms` | Drive the 30-second usage-flush cycle and the configurable reset window |
+| `alarms` | Drive the one-minute usage-flush cycle and session expiry checks |
+| `idle` | Detect screen lock and, when selected, five minutes without device input |
 
-No host permissions are requested. The content script is declared statically in the manifest and only injects an overlay element when a block condition is met.
+No `host_permissions` key is requested. The content scripts still run on matching web pages (`<all_urls>`), which can produce a broad site-access notice in Chrome. Blocking uses an overlay, so a page may begin loading before the overlay appears.
 
 ---
 
@@ -66,7 +74,7 @@ No host permissions are requested. The content script is declared statically in 
 ```
 src/
   background/     # Service worker (block checks, alarm-based usage reset)
-  content/        # Content script (overlay injection, 30-second time ping)
+    content/        # Content scripts (overlay and embedded-frame blocker)
   core/           # Pure logic: types, storage, validation, policy, matching
   ui/
     popup/        # Toolbar popup (React) — quick status view
@@ -109,9 +117,9 @@ Load the built extension in Chrome and verify each scenario before release.
 ### 1 — Active tab time counting
 
 1. Open the options page → Dashboard (or click **Dashboard** in the popup).
-2. Visit `example.com` for ~30 seconds, then switch back to the options tab.
+2. Visit `example.com` for ~60 seconds while Chrome remains focused, then switch back to the options tab.
 3. Click **↻ Refresh**.
-4. Confirm `example.com` appears in **Top sites** with ≥ 25 s of tracked time.
+4. Confirm `example.com` appears in **Top sites** with roughly one minute of tracked time.
 
 ### 2 — Time limit triggers overlay
 
@@ -123,9 +131,9 @@ Load the built extension in Chrome and verify each scenario before release.
 ### 3 — Group precedence
 
 1. Create a group `Test Group` with `example.com`, mode = **Block**.
-2. Also add a per-site override for `example.com`, mode = **Time-limit**, 60 minutes (less restrictive).
+2. Also add a per-site override for `example.com`, mode = **Time-limit**, 60 minutes.
 3. Visit `example.com`.
-4. Confirm the **block** overlay appears — group rule takes precedence.
+4. Confirm the per-site time limit applies — per-site rules take precedence over groups.
 
 ### 4 — Master disable toggle
 
@@ -133,7 +141,30 @@ Load the built extension in Chrome and verify each scenario before release.
 2. The sidebar status indicator should change from **Active** to **Disabled**.
 3. Visit a domain that has a block rule.
 4. Confirm no overlay appears and browsing is unrestricted.
-5. Re-enable the toggle; confirm blocking resumes on next page load.
+5. Re-enable the toggle; confirm blocking resumes on the open page.
+
+### 5 — Live rule and schedule changes
+
+1. Keep `example.com` open in a tab.
+2. From the options page, add or enable a block rule for it. Confirm the open tab shows the block overlay without reloading.
+3. Set a schedule boundary a minute or two ahead. Confirm the overlay appears or disappears at that boundary.
+
+### 6 — Quick actions and idle tracking
+
+1. Open an unrestricted website and use the popup to block it or set a short limit. Confirm the tab updates.
+2. In Settings, turn on idle pausing. Keep Chrome focused but leave the device untouched for more than five minutes. Check that tracked time stops increasing while the device is idle.
+
+### 7 — Backup and local history
+
+1. Browse for at least one minute, then check **Last 7 days** on the dashboard.
+2. Export a full backup and a settings-only backup.
+3. Import the settings-only backup and confirm current usage remains. A full backup should show a protection confirmation because it replaces usage.
+
+### 8 — Embedded content responds to rule changes
+
+1. Open a page with an embedded video from a site you have not blocked.
+2. Block that video's domain in JustDetox Settings. The embedded player should turn into a blocked placeholder without reloading the page.
+3. Remove the block through the protection confirmation. The embedded player should return without reloading the page.
 
 ---
 

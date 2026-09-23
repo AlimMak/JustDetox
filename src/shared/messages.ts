@@ -2,11 +2,15 @@
  * Message types for communication between content scripts and background.
  */
 
-export type MessageType = "CHECK_URL" | "RECORD_TIME" | "GET_STORAGE" | "DELAY_COMPLETED";
+export type MessageType = "CHECK_URL" | "RECORD_TIME" | "GET_STORAGE" | "DELAY_COMPLETED" | "CLEAR_TRACKED_DATA" | "IMPORT_ALL" | "EXPORT_ALL";
+
+export type CheckUrlContext = "navigation" | "refresh" | "iframe";
 
 export interface CheckUrlMessage {
   type: "CHECK_URL";
   hostname: string;
+  /** Only an intentional top-level navigation can count as a temptation. */
+  context?: CheckUrlContext;
 }
 
 export interface RecordTimeMessage {
@@ -24,7 +28,29 @@ export interface DelayCompletedMessage {
   type: "DELAY_COMPLETED";
 }
 
-export type ExtensionMessage = CheckUrlMessage | RecordTimeMessage | GetStorageMessage | DelayCompletedMessage;
+export interface ClearTrackedDataMessage {
+  type: "CLEAR_TRACKED_DATA";
+}
+
+export interface ImportAllMessage {
+  type: "IMPORT_ALL";
+  json: string;
+}
+
+export interface ExportAllMessage {
+  type: "EXPORT_ALL";
+}
+
+export type ExtensionMessage = CheckUrlMessage | RecordTimeMessage | GetStorageMessage | DelayCompletedMessage | ClearTrackedDataMessage | ImportAllMessage | ExportAllMessage;
+
+export interface ClearTrackedDataResponse {
+  ok: boolean;
+  error?: string;
+}
+
+export type ImportAllResponse = ClearTrackedDataResponse;
+
+export type ExportAllResponse = { ok: true; json: string } | { ok: false; error: string };
 
 export interface CheckUrlResponse {
   blocked: boolean;
@@ -38,4 +64,10 @@ export interface CheckUrlResponse {
   delayed?: boolean;
   /** Countdown duration in seconds; only set when delayed === true. */
   delaySeconds?: number;
+  /** Rule or mode responsible for a blocked response. */
+  source?: string;
+  /** Unix timestamp when the decision should next be checked. */
+  nextCheckTs?: number;
+  /** Human-readable description of that upcoming change. */
+  nextChangeLabel?: string;
 }

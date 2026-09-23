@@ -173,6 +173,45 @@ describe("forceFlushStorageQueue", () => {
     await Promise.all([forceFlushStorageQueue(), forceFlushStorageQueue()]);
     expect(chromeSpy.spy).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps an automatic in-flight write readable and waits for it", async () => {
+    let completeWrite: (() => void) | undefined;
+    chromeSpy.spy.mockImplementationOnce((_items, callback) => {
+      completeWrite = callback;
+    });
+
+    const value = { a: 1 };
+    queueStorageReplace("jd_usage", value);
+    vi.advanceTimersByTime(1_000);
+    expect(readThrough("jd_usage")).toBe(value);
+
+    let finished = false;
+    const forced = forceFlushStorageQueue().then(() => { finished = true; });
+    await Promise.resolve();
+    expect(finished).toBe(false);
+    completeWrite?.();
+    await forced;
+    expect(finished).toBe(true);
+    expect(chromeSpy.spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("drains a newer write queued during an automatic flush", async () => {
+    let completeFirst: (() => void) | undefined;
+    chromeSpy.spy.mockImplementationOnce((_items, callback) => {
+      completeFirst = callback;
+    });
+
+    queueStorageReplace("jd_usage", { a: 1 });
+    vi.advanceTimersByTime(1_000);
+    queueStorageReplace("jd_usage", { a: 2 });
+    const forced = forceFlushStorageQueue();
+    completeFirst?.();
+    await forced;
+
+    expect(chromeSpy.spy).toHaveBeenCalledTimes(2);
+    expect(chromeSpy.spy.mock.calls[1][0]).toEqual({ jd_usage: { a: 2 } });
+    expect(readThrough("jd_usage")).toBeUndefined();
+  });
 });
 
 // ─── flushStorageQueue ────────────────────────────────────────────────────────

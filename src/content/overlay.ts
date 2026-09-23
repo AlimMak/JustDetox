@@ -22,7 +22,12 @@
  *    worker; this script sends no RECORD_TIME messages.
  */
 
-import type { CheckUrlMessage, CheckUrlResponse, DelayCompletedMessage } from "../shared/messages";
+import type {
+  CheckUrlContext,
+  CheckUrlMessage,
+  CheckUrlResponse,
+  DelayCompletedMessage,
+} from "../shared/messages";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -59,12 +64,32 @@ const BASE_OVERLAY_STYLE: Partial<CSSStyleDeclaration> = {
  * Inject the block overlay with the given block message and optional subtitle.
  * Idempotent — calling a second time before unmounting is a no-op.
  */
-function mountOverlay(message: string, subtitle?: string): void {
-  if (document.getElementById(OVERLAY_ID)) return;
-
+function mountOverlay(
+  hostname: string,
+  message: string,
+  subtitle?: string,
+  source?: string,
+  nextChangeLabel?: string,
+  nextCheckTs?: number,
+): void {
+  const existing = document.getElementById(OVERLAY_ID);
   const overlay = document.createElement("div");
   overlay.id = OVERLAY_ID;
+  overlay.setAttribute("role", "alertdialog");
+  overlay.setAttribute("aria-label", `JustDetox blocked ${hostname}`);
   Object.assign(overlay.style, BASE_OVERLAY_STYLE);
+
+  const site = document.createElement("p");
+  site.textContent = hostname;
+  Object.assign(site.style, {
+    margin: "0 0 20px",
+    fontSize: "0.8rem",
+    color: "#9ca3af",
+    letterSpacing: "0.06em",
+    overflowWrap: "anywhere",
+    maxWidth: "min(90vw, 480px)",
+  });
+  overlay.appendChild(site);
 
   const msg = document.createElement("p");
   msg.textContent = message;
@@ -95,8 +120,38 @@ function mountOverlay(message: string, subtitle?: string): void {
     overlay.appendChild(sub);
   }
 
+  if (source) {
+    const reason = document.createElement("p");
+    reason.textContent = `Why: ${source}`;
+    Object.assign(reason.style, {
+      margin: "24px 0 0",
+      fontSize: "0.85rem",
+      color: "#c4cbd4",
+      textAlign: "center",
+      padding: "0 24px",
+    });
+    overlay.appendChild(reason);
+  }
+
+  const next = document.createElement("p");
+  const validTime = nextCheckTs !== undefined && Number.isFinite(nextCheckTs) && nextCheckTs > Date.now();
+  next.textContent = validTime && nextChangeLabel
+    ? `${nextChangeLabel}: ${new Date(nextCheckTs).toLocaleString(undefined, {
+        weekday: "short", hour: "numeric", minute: "2-digit",
+      })}`
+    : "No scheduled end. Change this rule in JustDetox settings.";
+  Object.assign(next.style, {
+    margin: "10px 0 0",
+    fontSize: "0.75rem",
+    color: "#9ca3af",
+    textAlign: "center",
+    padding: "0 24px",
+  });
+  overlay.appendChild(next);
+
   attachInteractionBlock(overlay);
-  document.documentElement.appendChild(overlay);
+  if (existing) existing.replaceWith(overlay);
+  else document.documentElement.appendChild(overlay);
   applyScrollLock();
 }
 
@@ -112,8 +167,8 @@ let delayTimer: ReturnType<typeof setInterval> | null = null;
 /**
  * Mount the delay overlay and count down from `seconds`.
  * After the countdown reaches zero the overlay is removed and
- * `checkCurrentUrl()` is called with `justCompletedDelay = true`
- * so it does not re-enter the delay loop.
+ * A completed delay is remembered for this document's hostname so a
+ * settings/usage refresh does not restart the countdown.
  *
  * Idempotent — any existing delay overlay (and its timer) is replaced.
  */
@@ -181,9 +236,8 @@ function mountDelayOverlay(hostname: string, seconds: number): void {
       // Notify background so it can credit the delay-completion bonus.
       const msg: DelayCompletedMessage = { type: "DELAY_COMPLETED" };
       void chrome.runtime.sendMessage(msg);
-      // Re-check with the flag set so we don't re-enter the delay loop.
-      justCompletedDelay = true;
-      checkCurrentUrl();
+      delaySatisfiedHost = hostname;
+      checkCurrentUrl("refresh");
     }
   }, 1_000);
 }
@@ -241,31 +295,36 @@ let currentHostname: string = location.hostname;
 let isOverlayVisible: boolean = false;
 let isDelayOverlayVisible: boolean = false;
 let checkInFlight: boolean = false;
+let pendingCheck: CheckUrlContext | null = null;
 let nextCheckTimer: ReturnType<typeof setTimeout> | null = null;
-
-/**
- * Set to true by the delay timer callback before calling checkCurrentUrl().
- * When true, a `delayed` response is treated as "allow through" rather than
- * starting another countdown — preventing an infinite delay loop.
- * Cleared on each use.
- */
-let justCompletedDelay: boolean = false;
+let delaySatisfiedHost: string | null = null;
 
 // ─── Background communication ─────────────────────────────────────────────────
 
-async function checkCurrentUrl(): Promise<void> {
-  // Guard against concurrent checks triggered by rapid SPA navigations.
-  if (checkInFlight) return;
-  checkInFlight = true;
+function scheduleNextCheck(response: CheckUrlResponse): void {
+  const now = Date.now();
+  const candidates: number[] = [];
+  if (response.nextCheckTs !== undefined && response.nextCheckTs > now) {
+    candidates.push(response.nextCheckTs - now + 100);
+  }
+  if (response.mode === "time-limit" && !response.blocked &&
+      (response.remainingSeconds ?? 0) > 0) {
+    candidates.push(response.remainingSeconds! * 1_000 + RECHECK_BUFFER_MS);
+  }
+  if (candidates.length > 0) {
+    nextCheckTimer = setTimeout(() => checkCurrentUrl("refresh"), Math.min(...candidates));
+  }
+}
 
-  // Clear any pending scheduled re-check (it will be rescheduled below if needed).
+async function performCheck(context: CheckUrlContext): Promise<void> {
+  // Clear any pending scheduled re-check; this response will schedule a new one.
   if (nextCheckTimer !== null) {
     clearTimeout(nextCheckTimer);
     nextCheckTimer = null;
   }
 
   const hostname = location.hostname;
-  const msg: CheckUrlMessage = { type: "CHECK_URL", hostname };
+  const msg: CheckUrlMessage = { type: "CHECK_URL", hostname, context };
 
   let response: CheckUrlResponse | null | undefined;
   try {
@@ -273,15 +332,19 @@ async function checkCurrentUrl(): Promise<void> {
   } catch {
     // Extension context may not be ready (just installed) or was invalidated
     // (extension updated). Silently skip — the next navigation will retry.
-  } finally {
-    checkInFlight = false;
   }
 
   if (!response) return;
+  if (hostname !== location.hostname) {
+    pendingCheck = "navigation";
+    return;
+  }
+  scheduleNextCheck(response);
 
   // ── Delay Mode ──────────────────────────────────────────────────────────────
-  if (response.delayed && response.delaySeconds && !justCompletedDelay) {
+  if (response.delayed && response.delaySeconds && delaySatisfiedHost !== hostname) {
     // Site is accessible but requires a countdown first.
+    if (isDelayOverlayVisible) return; // retain the countdown already in progress
     isDelayOverlayVisible = true;
     isOverlayVisible = false;
     unmountOverlay();
@@ -289,15 +352,19 @@ async function checkCurrentUrl(): Promise<void> {
     return;
   }
 
-  // Clear the one-shot flag after any non-delay-triggering check.
-  justCompletedDelay = false;
-
   // ── Block overlay ───────────────────────────────────────────────────────────
   if (response.blocked && response.message) {
     isDelayOverlayVisible = false;
     isOverlayVisible = true;
     unmountDelayOverlay();
-    mountOverlay(response.message, response.subtitle);
+    mountOverlay(
+      hostname,
+      response.message,
+      response.subtitle,
+      response.source,
+      response.nextChangeLabel,
+      response.nextCheckTs,
+    );
     return;
   }
 
@@ -306,13 +373,25 @@ async function checkCurrentUrl(): Promise<void> {
   isOverlayVisible = false;
   unmountDelayOverlay();
   unmountOverlay();
+}
 
-  // For time-limited sites: schedule a re-check at the moment the quota
-  // expires, so the overlay appears without needing the user to navigate.
-  if (response.mode === "time-limit" && (response.remainingSeconds ?? 0) > 0) {
-    const delayMs = (response.remainingSeconds! + RECHECK_BUFFER_MS / 1_000) * 1_000;
-    nextCheckTimer = setTimeout(checkCurrentUrl, delayMs);
+/** Serialize checks so rapid changes cannot leave an old response on screen. */
+function checkCurrentUrl(context: CheckUrlContext = "refresh"): void {
+  if (checkInFlight) {
+    if (pendingCheck !== "navigation") pendingCheck = context;
+    return;
   }
+  checkInFlight = true;
+  void performCheck(context)
+    .catch(() => {})
+    .finally(() => {
+      checkInFlight = false;
+      if (pendingCheck !== null) {
+        const next = pendingCheck;
+        pendingCheck = null;
+        checkCurrentUrl(next);
+      }
+    });
 }
 
 // ─── SPA navigation detection ─────────────────────────────────────────────────
@@ -325,8 +404,9 @@ function onUrlChange(): void {
   //  b) either overlay is visible (navigating on a blocked/delayed domain
   //     should re-validate).
   if (newHostname !== currentHostname || isOverlayVisible || isDelayOverlayVisible) {
+    if (newHostname !== currentHostname) delaySatisfiedHost = null;
     currentHostname = newHostname;
-    checkCurrentUrl();
+    checkCurrentUrl("navigation");
   }
 }
 
@@ -355,13 +435,27 @@ window.addEventListener("hashchange", onUrlChange);
 // YouTube-specific navigation event (belt-and-suspenders alongside pushState patch).
 window.addEventListener("yt-navigate-finish", onUrlChange);
 
+// Rule edits and usage updates should affect a tab that is already open.
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local" && (changes.jd_settings || changes.jd_usage)) {
+    checkCurrentUrl("refresh");
+  }
+});
+
+// Timers can be throttled while the tab is hidden or restored from back/forward
+// cache. Recheck when it becomes visible again.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") checkCurrentUrl("refresh");
+});
+window.addEventListener("pageshow", () => checkCurrentUrl("refresh"));
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 // Immediate check — chrome.runtime is available at document_start.
-checkCurrentUrl();
+checkCurrentUrl("navigation");
 
 // Also check at DOMContentLoaded to catch cases where the initial check
 // failed because the extension context wasn't ready yet.
 document.addEventListener("DOMContentLoaded", () => {
-  if (!isOverlayVisible && !isDelayOverlayVisible) checkCurrentUrl();
+  if (!isOverlayVisible && !isDelayOverlayVisible) checkCurrentUrl("refresh");
 }, { once: true });

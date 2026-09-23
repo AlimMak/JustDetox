@@ -11,18 +11,6 @@ export type Section =
   | "import-export"
   | "about";
 
-const VALID_SECTIONS: Section[] = [
-  "rules",
-  "locked-in",
-  "settings",
-  "groups",
-  "sites",
-  "packs",
-  "reset-window",
-  "import-export",
-  "about",
-];
-
 const NAV_ITEMS: { id: Section; label: string }[] = [
   { id: "rules",         label: "Rules" },
   { id: "locked-in",    label: "Locked In" },
@@ -78,10 +66,4 @@ export function Sidebar({ active, onSelect, extensionDisabled, lockedInActive }:
       </div>
     </nav>
   );
-}
-
-/** Resolve the initial section from location.hash, defaulting to "rules". */
-export function resolveInitialSection(): Section {
-  const hash = location.hash.slice(1) as Section;
-  return VALID_SECTIONS.includes(hash) ? hash : "rules";
 }

@@ -1,23 +1,52 @@
 // FILE: src/ui/options/components/DashboardPanel.tsx
 
 import { useDashboard } from "../hooks/useDashboard";
+import { useState } from "react";
 import { BarChart } from "./BarChart";
 import { DopamineScoreCard } from "./DopamineScoreCard";
 import { SelfControlSection } from "./SelfControlSection";
 import type { Settings } from "../../../core/types";
 import { formatTime } from "../../popup/utils/formatTime";
 import { useFriction } from "../context/FrictionContext";
+import { ProgressHistorySection } from "./ProgressHistorySection";
+import { sendBackgroundCommand } from "../utils/backgroundCommand";
 
 interface DashboardPanelProps {
   settings: Settings;
   patch: (update: Partial<Settings> | ((prev: Settings) => Settings)) => void;
   lockedInActive?: boolean;
+  onOpenSite?: (hostname: string) => void;
 }
 
-export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPanelProps) {
-  const { domainStats, groupStats, temptationStats, totalSeconds, dopamineScore, loading, refresh } =
+export function DashboardPanel({ settings, patch, lockedInActive, onOpenSite }: DashboardPanelProps) {
+  const { domainStats, groupStats, temptationStats, totalSeconds, dopamineScore, history, loading, error, refresh } =
     useDashboard(settings);
   const { askFriction } = useFriction();
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
+  const [dataRevision, setDataRevision] = useState(0);
+
+  const handleClear = async () => {
+    const ok = await askFriction({
+      actionType: "clear-tracked-data",
+      label: "Delete local tracking data",
+      context: ["Active time limits will reset for the current window."],
+    });
+    if (!ok) return;
+    setClearing(true);
+    setClearError(null);
+    try {
+      const result = await sendBackgroundCommand({ type: "CLEAR_TRACKED_DATA" });
+      if (!result.ok) {
+        setClearError(result.error ?? "Could not delete tracked data. Try again.");
+        return;
+      }
+      await refresh();
+      setDataRevision((revision) => revision + 1);
+    } finally {
+      setClearing(false);
+    }
+  };
 
   const handleDisableToggle = async () => {
     // Only gate the action when the extension is currently ENABLED (i.e. user is disabling it).
@@ -52,6 +81,7 @@ export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPan
           </button>
         </div>
       </div>
+      {error && <p className="field__error" role="alert">{error}</p>}
 
       {/* Dopamine Score */}
       {!loading && <DopamineScoreCard data={dopamineScore} />}
@@ -94,7 +124,7 @@ export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPan
             <span className="stat-card__value tabular">{settings.siteRules.length}</span>
           </div>
           <div className="stat-card">
-            <span className="stat-card__label">Tracked today</span>
+            <span className="stat-card__label">Tracked in current windows</span>
             <span className="stat-card__value tabular">{formatTime(totalSeconds)}</span>
           </div>
           <div className="stat-card">
@@ -106,7 +136,10 @@ export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPan
 
       {/* Top sites */}
       <section className="panel-section">
-        <p className="section-heading">Top sites this window</p>
+          <p className="section-heading">Top sites in current windows</p>
+          <p className="field__hint" style={{ marginBottom: "var(--sp-3)" }}>
+            Each site&apos;s {settings.resetWindow.intervalHours}h window starts when it is first visited. Select a site to add or edit its rule.
+          </p>
         {loading ? (
           <p style={{ color: "var(--text-3)", fontSize: "var(--text-sm)" }}>Loading…</p>
         ) : domainStats.length === 0 ? (
@@ -118,6 +151,7 @@ export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPan
           <BarChart
             items={domainStats.map((d) => ({ label: d.hostname, value: d.activeSeconds }))}
             emptyMessage=""
+            onItemClick={onOpenSite}
           />
         )}
       </section>
@@ -152,7 +186,16 @@ export function DashboardPanel({ settings, patch, lockedInActive }: DashboardPan
       )}
 
       {/* Self-Control Graph */}
-      {!loading && <SelfControlSection />}
+      {!loading && <SelfControlSection key={dataRevision} />}
+
+      {!loading && (
+        <ProgressHistorySection
+          history={history}
+          clearing={clearing}
+          clearError={clearError}
+          onClear={() => void handleClear()}
+        />
+      )}
 
       {/* Groups summary — only if groups exist */}
       {settings.groups.length > 0 && (

@@ -16,6 +16,7 @@ export type BarItem = BarChartItem;
 interface BarChartProps {
   items: BarChartItem[];
   emptyMessage: string;
+  onItemClick?: (label: string) => void;
 }
 
 /**
@@ -24,7 +25,7 @@ interface BarChartProps {
  * The widest bar is always 100%; all others are scaled proportionally.
  * Values are shown as formatted time strings on the right.
  */
-export function BarChart({ items, emptyMessage }: BarChartProps) {
+export function BarChart({ items, emptyMessage, onItemClick }: BarChartProps) {
   if (items.length === 0) {
     return (
       <p style={{ fontSize: "var(--text-sm)", color: "var(--text-3)" }}>
@@ -41,7 +42,13 @@ export function BarChart({ items, emptyMessage }: BarChartProps) {
       {top5.map((item, idx) => (
         <div key={item.label} className="bar-item">
           <div>
-            <div className="bar-item__label truncate">{item.label}</div>
+            {onItemClick ? (
+              <button className="bar-item__label bar-item__link truncate" onClick={() => onItemClick(item.label)}>
+                {item.label}
+              </button>
+            ) : (
+              <div className="bar-item__label truncate">{item.label}</div>
+            )}
             {item.sublabel && (
               <div className="bar-item__sublabel">{item.sublabel}</div>
             )}

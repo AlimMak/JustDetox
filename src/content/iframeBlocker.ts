@@ -11,6 +11,8 @@
  *  4. Watch for dynamically added iframes (JS frameworks, lazy-load) via
  *     MutationObserver and apply the same check.
  *  5. Watch for src attribute changes on existing iframes and re-check.
+ *  6. Re-check live embeds when rules or usage change, and restore embeds
+ *     when they become allowed again.
  *
  * Design constraints:
  *  - Inline styles only (same as overlay.ts) — no CSP issues, no flash.
@@ -28,10 +30,19 @@ const BLOCKED_FRAME_CLASS = "justdetox-blocked-frame";
 
 /**
  * Data attribute set on iframes once they have been checked.
- * Prevents duplicate async requests when the MutationObserver fires
- * multiple times for the same element.
+ * The in-memory frame state prevents duplicate requests while allowing
+ * settings and usage changes to re-check an existing embed.
  */
 const CHECKED_ATTR = "data-jd-checked";
+
+interface TrackedFrame {
+  placeholder: HTMLDivElement | null;
+  checkedSrc: string | null;
+  generation: number;
+}
+
+/** Keep the original iframe so a lifted block can restore it. */
+const trackedFrames = new Map<HTMLIFrameElement, TrackedFrame>();
 
 // ─── Domain extraction ────────────────────────────────────────────────────────
 
@@ -123,17 +134,17 @@ export function buildBlockedPlaceholder(width: number, height: number): HTMLDivE
  * Per requirement §10: delay mode → block immediately for embedded content.
  * A `delayed` response is treated as `blocked` here.
  */
-async function shouldBlockDomain(hostname: string): Promise<boolean> {
-  const msg: CheckUrlMessage = { type: "CHECK_URL", hostname };
+async function shouldBlockDomain(hostname: string): Promise<boolean | null> {
+  const msg: CheckUrlMessage = { type: "CHECK_URL", hostname, context: "iframe" };
   try {
     const response: CheckUrlResponse | null | undefined =
       await chrome.runtime.sendMessage(msg);
-    if (!response) return false;
+    if (!response) return null;
     // Delay mode: block embedded content instead of showing a countdown.
     return response.blocked || (response.delayed ?? false);
   } catch {
-    // Extension context not ready or invalidated — fail open (don't block).
-    return false;
+    // Keep the current state when the extension context is unavailable.
+    return null;
   }
 }
 
@@ -146,17 +157,40 @@ async function shouldBlockDomain(hostname: string): Promise<boolean> {
  * Idempotent — iframes are marked with CHECKED_ATTR after the first check
  * to prevent duplicate async requests from concurrent observer callbacks.
  */
-export async function processIframe(iframe: HTMLIFrameElement): Promise<void> {
-  if (iframe.hasAttribute(CHECKED_ATTR)) return;
-  // Mark immediately to guard against concurrent invocations.
+export async function processIframe(iframe: HTMLIFrameElement, force = false): Promise<void> {
+  const src = iframe.getAttribute("src") ?? iframe.src ?? "";
+  let state = trackedFrames.get(iframe);
+  if (!state) {
+    state = { placeholder: null, checkedSrc: null, generation: 0 };
+    trackedFrames.set(iframe, state);
+  }
+  if (!force && state.checkedSrc === src) return;
+  state.checkedSrc = src;
+  const generation = ++state.generation;
   iframe.setAttribute(CHECKED_ATTR, "1");
 
-  const src = iframe.getAttribute("src") ?? iframe.src ?? "";
   const hostname = extractIframeDomain(src);
-  if (!hostname) return; // non-HTTP src — leave alone
+  if (!hostname) {
+    if (state.placeholder?.parentNode) {
+      state.placeholder.parentNode.replaceChild(iframe, state.placeholder);
+      state.placeholder = null;
+    }
+    return;
+  }
 
   const blocked = await shouldBlockDomain(hostname);
-  if (!blocked) return;
+  // An older response must not replace an iframe whose src changed meanwhile.
+  if (blocked === null || state.generation !== generation ||
+      (iframe.getAttribute("src") ?? iframe.src ?? "") !== src) return;
+
+  if (!blocked) {
+    if (state.placeholder?.parentNode) {
+      state.placeholder.parentNode.replaceChild(iframe, state.placeholder);
+      state.placeholder = null;
+    }
+    return;
+  }
+  if (state.placeholder?.parentNode || !iframe.parentNode) return;
 
   // Capture dimensions before removing the element from the DOM.
   const width = iframe.offsetWidth > 0
@@ -167,7 +201,19 @@ export async function processIframe(iframe: HTMLIFrameElement): Promise<void> {
     : parseInt(iframe.getAttribute("height") ?? "0", 10);
 
   const placeholder = buildBlockedPlaceholder(width, height);
-  iframe.parentNode?.replaceChild(placeholder, iframe);
+  iframe.parentNode.replaceChild(placeholder, iframe);
+  state.placeholder = placeholder;
+}
+
+/** Recheck live embeds when rules or the active time budget change. */
+export function recheckTrackedFrames(): void {
+  for (const [iframe, state] of trackedFrames) {
+    if (!iframe.isConnected && !state.placeholder?.isConnected) {
+      trackedFrames.delete(iframe);
+      continue;
+    }
+    void processIframe(iframe, true);
+  }
 }
 
 // ─── Scan helpers ─────────────────────────────────────────────────────────────
@@ -215,8 +261,6 @@ export function initIframeBlocker(): void {
           target.nodeType === Node.ELEMENT_NODE &&
           (target as Element).tagName === "IFRAME"
         ) {
-          // Reset the checked marker so the new src is evaluated.
-          (target as Element).removeAttribute(CHECKED_ATTR);
           void processIframe(target as HTMLIFrameElement);
         }
       }
@@ -229,6 +273,19 @@ export function initIframeBlocker(): void {
     attributes: true,
     attributeFilter: ["src"],
   });
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === "local" && (changes.jd_settings || changes.jd_usage)) {
+      recheckTrackedFrames();
+    }
+  });
+
+  // A schedule may change while a tab is hidden and no usage write occurs.
+  // Check again when the page returns to view or from the back-forward cache.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") recheckTrackedFrames();
+  });
+  window.addEventListener("pageshow", recheckTrackedFrames);
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────

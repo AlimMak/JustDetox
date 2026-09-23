@@ -5,6 +5,7 @@ import type { Settings } from "../../../core/types";
 import { DEFAULT_FRICTION_SETTINGS, DEFAULT_PROTECTED_GATE } from "../../../core/types";
 import { DomainPillInput } from "./DomainPillInput";
 import { useFriction } from "../context/FrictionContext";
+import { resolveEffectivePolicy } from "../../../core/policy";
 
 const RESET_PRESETS = [6, 12, 24, 48] as const;
 
@@ -15,22 +16,120 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
   const [customHours, setCustomHours] = useState<string>("");
+  const [allowlistError, setAllowlistError] = useState<string | null>(null);
   const [phraseInput, setPhraseInput] = useState(
     settings.protectedGate?.phrase ?? DEFAULT_PROTECTED_GATE.phrase,
   );
   const { askFriction } = useFriction();
 
   const pg = settings.protectedGate ?? DEFAULT_PROTECTED_GATE;
+  const lockedInActive = Boolean(settings.lockedInSession?.active && Date.now() < settings.lockedInSession.endTs);
 
-  const patchPg = (partial: Partial<typeof pg>) =>
-    patch({ protectedGate: { ...pg, ...partial } });
+  const patchPg = async (partial: Partial<typeof pg>): Promise<boolean> => {
+    const next = { ...pg, ...partial };
+    const weakening = pg.enabled && (
+      !next.enabled ||
+      (pg.requireCooldown && !next.requireCooldown) ||
+      (pg.requirePhrase && !next.requirePhrase) ||
+      (pg.requireCooldown && next.cooldownSeconds < pg.cooldownSeconds) ||
+      next.phrase !== pg.phrase
+    );
+    if (weakening) {
+      const ok = await askFriction({
+        actionType: "weaken-protected-gate",
+        label: "Protected Settings Gate",
+      });
+      if (!ok) return false;
+    }
+    patch({ protectedGate: next });
+    return true;
+  };
+
+  const patchAllowlist = async (enabled: boolean, allowedDomains: string[]) => {
+    if (enabled && allowedDomains.length === 0) {
+      setAllowlistError("Add at least one allowed domain before enabling Focus Environment.");
+      return;
+    }
+    if (enabled && lockedInActive) {
+      setAllowlistError("Wait until Locked In ends before enabling Focus Environment.");
+      return;
+    }
+    setAllowlistError(null);
+    const added = allowedDomains.filter((domain) => !settings.allowlistMode.allowedDomains.includes(domain));
+    const bypassed = !settings.allowlistMode.enabled && enabled
+      ? allowedDomains.filter((domain) => resolveEffectivePolicy(domain, settings) !== null)
+      : [];
+    if ((settings.allowlistMode.enabled && !enabled) ||
+      (settings.allowlistMode.enabled && added.length > 0) || bypassed.length > 0) {
+      const ok = await askFriction({
+        actionType: settings.allowlistMode.enabled && !enabled
+          ? "disable-focus-environment"
+          : "weaken-focus-environment",
+        label: settings.allowlistMode.enabled && !enabled
+          ? "Turn off Focus Environment"
+          : `Allow ${[...added, ...bypassed].filter((domain, index, all) => all.indexOf(domain) === index).join(", ")} during Focus Environment`,
+        context: [...added, ...bypassed].map((domain) => `Allow access to ${domain}`),
+      });
+      if (!ok) return;
+    }
+    patch({ allowlistMode: { enabled, allowedDomains } });
+  };
+
+  const patchBlockList = async (list: string[]) => {
+    const removed = settings.globalBlockList.filter((domain) => !list.includes(domain));
+    if (removed.length > 0) {
+      const ok = await askFriction({
+        actionType: "remove-always-blocked",
+        label: `Remove ${removed.join(", ")} from Always blocked`,
+        context: removed.map((domain) => `Unblock ${domain}`),
+      });
+      if (!ok) return;
+    }
+    patch({ globalBlockList: list });
+  };
+
+  const patchResetWindow = async (hours: number) => {
+    if (hours === intervalHours) return;
+    if (hours < intervalHours) {
+      const ok = await askFriction({
+        actionType: "shorten-reset-window",
+        label: `Reset usage every ${hours}h instead of ${intervalHours}h`,
+      });
+      if (!ok) return;
+    }
+    patch({ resetWindow: { intervalHours: hours } });
+  };
+
+  const patchFriction = async (partial: Partial<Settings["friction"]>) => {
+    const current = settings.friction ?? DEFAULT_FRICTION_SETTINGS;
+    const next = { ...current, ...partial };
+    if (current.enabled && ((!next.enabled) || (current.requireReflection && !next.requireReflection))) {
+      const ok = await askFriction({
+        actionType: "weaken-friction-layer",
+        label: !next.enabled ? "Turn off Friction Layer" : "Stop requiring reflection text",
+      });
+      if (!ok) return;
+    }
+    patch({ friction: next });
+  };
+
+  const patchIdleTracking = async (pauseWhenIdle: boolean) => {
+    if (pauseWhenIdle && !settings.pauseWhenIdle) {
+      const ok = await askFriction({
+        actionType: "pause-tracking-when-idle",
+        label: "Pause tracking after five minutes without device input",
+      });
+      if (!ok) return;
+    }
+    patch({ pauseWhenIdle });
+  };
   const { intervalHours } = settings.resetWindow;
   const isCustom = !RESET_PRESETS.includes(intervalHours as (typeof RESET_PRESETS)[number]);
 
-  const applyCustomHours = () => {
+  const applyCustomHours = async () => {
     const h = parseInt(customHours, 10);
     if (h >= 1 && h <= 168) {
-      patch({ resetWindow: { intervalHours: h } });
+      await patchResetWindow(h);
       setCustomHours("");
     }
   };
@@ -50,6 +149,9 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
         <p className="field__hint" style={{ marginBottom: "var(--sp-4)" }}>
           When active, only the domains you list below are accessible — everything else is blocked. Normal block and limit rules are bypassed.
         </p>
+        <p className="field__hint" style={{ marginBottom: "var(--sp-4)" }}>
+          Focus Environment takes priority over Locked In. Start or change it after your Locked In session ends.
+        </p>
 
         {/* Enable toggle */}
         <div
@@ -67,14 +169,8 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
               className="toggle__input"
               type="checkbox"
               checked={settings.allowlistMode.enabled}
-              onChange={(e) =>
-                patch({
-                  allowlistMode: {
-                    ...settings.allowlistMode,
-                    enabled: e.target.checked,
-                  },
-                })
-              }
+              disabled={lockedInActive && !settings.allowlistMode.enabled}
+              onChange={(e) => void patchAllowlist(e.target.checked, settings.allowlistMode.allowedDomains)}
             />
             <span className="toggle__track"><span className="toggle__thumb" /></span>
           </label>
@@ -85,16 +181,10 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
           <span className="field__label">Allowed domains</span>
           <DomainPillInput
             domains={settings.allowlistMode.allowedDomains}
-            onChange={(list) =>
-              patch({
-                allowlistMode: {
-                  ...settings.allowlistMode,
-                  allowedDomains: list,
-                },
-              })
-            }
+            onChange={(list) => void patchAllowlist(settings.allowlistMode.enabled, list)}
             placeholder="github.com, notion.so…"
           />
+          {allowlistError && <p className="field__error">{allowlistError}</p>}
           <p className="field__hint">
             Subdomains are included automatically (e.g. adding github.com also allows gist.github.com). Paste URLs — they will be normalized.
           </p>
@@ -110,7 +200,7 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
             <button
               key={h}
               className={`seg__option${intervalHours === h ? " seg__option--active" : ""}`}
-              onClick={() => patch({ resetWindow: { intervalHours: h } })}
+              onClick={() => void patchResetWindow(h)}
             >
               {h}h
             </button>
@@ -133,15 +223,37 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
               max={168}
               value={customHours !== "" ? customHours : intervalHours}
               onChange={(e) => setCustomHours(e.target.value)}
-              onBlur={applyCustomHours}
-              onKeyDown={(e) => e.key === "Enter" && applyCustomHours()}
+              onBlur={() => void applyCustomHours()}
+              onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
             />
           </div>
         )}
 
         <p className="reset-window-hint">
-          Usage counters reset every {intervalHours}h. Changing this does not erase existing data.
+          Usage counters reset every {intervalHours}h. Shortening this window may reset current limits sooner.
         </p>
+      </section>
+
+      {/* Idle tracking */}
+      <section className="panel-section">
+        <p className="section-heading">Idle tracking</p>
+        <div className="field" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <span className="field__label" style={{ marginBottom: 0 }}>Pause after five minutes without input</span>
+            <p className="field__hint" style={{ marginTop: "var(--sp-1)" }}>
+              A locked screen always pauses tracking. Turn this on if you also want to pause while the device is idle. Reading or watching a video without input can appear idle.
+            </p>
+          </div>
+          <label className="toggle">
+            <input
+              className="toggle__input"
+              type="checkbox"
+              checked={settings.pauseWhenIdle}
+              onChange={(event) => void patchIdleTracking(event.target.checked)}
+            />
+            <span className="toggle__track"><span className="toggle__thumb" /></span>
+          </label>
+        </div>
       </section>
 
       {/* Always blocked */}
@@ -150,11 +262,11 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
         <div className="field">
           <DomainPillInput
             domains={settings.globalBlockList}
-            onChange={(list) => patch({ globalBlockList: list })}
+            onChange={(list) => void patchBlockList(list)}
             placeholder="reddit.com, tiktok.com…"
           />
           <p className="field__hint">
-            Blocked globally regardless of any group or site rule.
+            Blocks these domains when no matching site or group rule exists. A site rule can override this list.
           </p>
         </div>
       </section>
@@ -182,7 +294,7 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
               className="toggle__input"
               type="checkbox"
               checked={pg.enabled}
-              onChange={(e) => patchPg({ enabled: e.target.checked })}
+              onChange={(e) => void patchPg({ enabled: e.target.checked })}
             />
             <span className="toggle__track"><span className="toggle__thumb" /></span>
           </label>
@@ -196,7 +308,7 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
           <div>
             <span className="field__label" style={{ marginBottom: 0 }}>Require cooldown</span>
             <p className="field__hint" style={{ marginTop: "var(--sp-1)" }}>
-              Block "Apply" until the timer reaches zero.
+              Block &quot;Apply&quot; until the timer reaches zero.
             </p>
           </div>
           <label className={`toggle${!pg.enabled ? " toggle--disabled" : ""}`}>
@@ -205,7 +317,7 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
               type="checkbox"
               disabled={!pg.enabled}
               checked={pg.requireCooldown}
-              onChange={(e) => patchPg({ requireCooldown: e.target.checked })}
+              onChange={(e) => void patchPg({ requireCooldown: e.target.checked })}
             />
             <span className="toggle__track"><span className="toggle__thumb" /></span>
           </label>
@@ -223,7 +335,7 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
             value={pg.cooldownSeconds}
             onChange={(e) => {
               const v = parseInt(e.target.value, 10);
-              if (!isNaN(v) && v >= 15 && v <= 300) patchPg({ cooldownSeconds: v });
+              if (!isNaN(v) && v >= 15 && v <= 300) void patchPg({ cooldownSeconds: v });
             }}
           />
           <p className="field__hint">15–300 seconds. Default: 60.</p>
@@ -246,7 +358,7 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
               type="checkbox"
               disabled={!pg.enabled}
               checked={pg.requirePhrase}
-              onChange={(e) => patchPg({ requirePhrase: e.target.checked })}
+              onChange={(e) => void patchPg({ requirePhrase: e.target.checked })}
             />
             <span className="toggle__track"><span className="toggle__thumb" /></span>
           </label>
@@ -265,7 +377,9 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
             onBlur={() => {
               const trimmed = phraseInput.trim().toUpperCase();
               if (trimmed.length >= 1 && trimmed.length <= 20) {
-                patchPg({ phrase: trimmed });
+                void patchPg({ phrase: trimmed }).then((applied) => {
+                  if (!applied) setPhraseInput(pg.phrase);
+                });
               } else {
                 setPhraseInput(pg.phrase);
               }
@@ -326,14 +440,7 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
               className="toggle__input"
               type="checkbox"
               checked={settings.friction?.enabled ?? DEFAULT_FRICTION_SETTINGS.enabled}
-              onChange={(e) =>
-                patch({
-                  friction: {
-                    ...(settings.friction ?? DEFAULT_FRICTION_SETTINGS),
-                    enabled: e.target.checked,
-                  },
-                })
-              }
+              onChange={(e) => void patchFriction({ enabled: e.target.checked })}
             />
             <span className="toggle__track"><span className="toggle__thumb" /></span>
           </label>
@@ -356,14 +463,7 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
               type="checkbox"
               disabled={!(settings.friction?.enabled ?? DEFAULT_FRICTION_SETTINGS.enabled)}
               checked={settings.friction?.requireReflection ?? DEFAULT_FRICTION_SETTINGS.requireReflection}
-              onChange={(e) =>
-                patch({
-                  friction: {
-                    ...(settings.friction ?? DEFAULT_FRICTION_SETTINGS),
-                    requireReflection: e.target.checked,
-                  },
-                })
-              }
+              onChange={(e) => void patchFriction({ requireReflection: e.target.checked })}
             />
             <span className="toggle__track"><span className="toggle__thumb" /></span>
           </label>
@@ -386,14 +486,7 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
               type="checkbox"
               disabled={!(settings.friction?.enabled ?? DEFAULT_FRICTION_SETTINGS.enabled)}
               checked={settings.friction?.logReflections ?? DEFAULT_FRICTION_SETTINGS.logReflections}
-              onChange={(e) =>
-                patch({
-                  friction: {
-                    ...(settings.friction ?? DEFAULT_FRICTION_SETTINGS),
-                    logReflections: e.target.checked,
-                  },
-                })
-              }
+              onChange={(e) => void patchFriction({ logReflections: e.target.checked })}
             />
             <span className="toggle__track"><span className="toggle__thumb" /></span>
           </label>

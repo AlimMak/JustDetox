@@ -6,7 +6,7 @@ Thanks for your interest in contributing. JustDetox is a focused, minimal tool �
 
 ## Design philosophy
 
-- **Minimal permissions** — never request more than `storage`, `tabs`, `alarms`. Justify any addition in the PR description.
+- **Minimal permissions** — currently `storage`, `tabs`, `alarms`, and `idle`. Justify any addition in the PR description.
 - **No telemetry or remote calls** — all data stays in the browser. No analytics, no phone-home, no remote config.
 - **Dark theme only** — the UI is intentionally dark monochrome (`#0a0a0a` base). No light mode, no colour themes.
 - **Small files, single responsibility** — keep files under ~400 lines. Extract utilities rather than growing existing files.
@@ -30,7 +30,7 @@ Load `dist/` as an unpacked extension in Chrome (`chrome://extensions → Load u
 ## Before you open a PR
 
 - [ ] `npm run build` completes without errors
-- [ ] `npm test` passes (80 tests, ≥ 80 % coverage)
+- [ ] `npm test` passes; add meaningful coverage for changed behavior
 - [ ] `npm run lint` produces no new warnings
 - [ ] `npm run typecheck` passes with zero type errors
 - [ ] No new `console.log` / `console.debug` added (use `console.warn`/`console.error` for genuine errors only, with `// eslint-disable-next-line no-console`)

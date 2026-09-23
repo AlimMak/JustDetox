@@ -27,11 +27,12 @@ No passwords, no credentials, no personally identifiable information are collect
 
 | Permission | Why it is needed |
 |------------|-----------------|
-| `storage` | Persist blocking rules and per-domain usage counters in `chrome.storage.local` |
+| `storage` | Persist blocking rules, usage counters, and local progress in `chrome.storage.local` |
 | `tabs` | Read the active tab's URL to apply rules; open the options/onboarding page on install |
-| `alarms` | Trigger the periodic 30-second usage flush and the daily reset window |
+| `alarms` | Trigger the one-minute usage flush and focus-session expiry checks |
+| `idle` | Detect screen lock and optional five-minute device inactivity |
 
-The extension requests **no host permissions** and therefore cannot read, modify, or intercept page content via the background service worker. Content-script injection is handled by the manifest `content_scripts` declaration, not dynamic injection.
+The extension has no `host_permissions` entry. Its manifest declares content scripts for `<all_urls>`, so Chrome may still display a broad site-access notice. Those scripts inspect page URLs and insert blocking overlays or iframe placeholders; the background service worker does not inspect page content.
 
 ---
 

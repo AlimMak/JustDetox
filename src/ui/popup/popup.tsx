@@ -9,7 +9,10 @@ import { useDopamineScore } from "./hooks/useDopamineScore";
 import { useSelfControlCount } from "./hooks/useSelfControlCount";
 import { useAllowlistMode } from "./hooks/useAllowlistMode";
 import { getScoreStatus } from "../../core/dopamine";
+import { getSettings, setSettings } from "../../core/storage";
+import type { Settings } from "../../core/types";
 import { formatTime } from "./utils/formatTime";
+import { addQuickRule, getQuickActionState, type QuickAction } from "./utils/quickActions";
 
 function openAt(hash: string) {
   void chrome.tabs.create({
@@ -18,9 +21,9 @@ function openAt(hash: string) {
 }
 
 const MODE_BADGE: Record<string, { label: string; cls: string }> = {
-  blocked:        { label: "Blocked",      cls: "popup-mode-badge--blocked" },
+  blocked: { label: "Blocked", cls: "popup-mode-badge--blocked" },
   "time-limited": { label: "Time-limited", cls: "popup-mode-badge--limited" },
-  unrestricted:   { label: "Unrestricted", cls: "popup-mode-badge--free" },
+  unrestricted: { label: "Unrestricted", cls: "popup-mode-badge--free" },
 };
 
 /** Live countdown of seconds remaining in a Locked In session. */
@@ -40,21 +43,73 @@ function useSessionCountdown(endTs: number | null): number {
   return remaining;
 }
 
-function Popup() {
+export function Popup() {
   const { hostname, loading: tabLoading, error: tabError } = useActiveTab();
-  const status = useSiteStatus(tabLoading ? null : hostname);
+  const [statusRevision, setStatusRevision] = useState(0);
+  const status = useSiteStatus(tabLoading ? null : hostname, statusRevision);
+  const [quickSettings, setQuickSettings] = useState<Settings | null>(null);
+  const [quickLoading, setQuickLoading] = useState(false);
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickError, setQuickError] = useState<string | null>(null);
+  const [quickSuccess, setQuickSuccess] = useState<string | null>(null);
+  const [limitMinutes, setLimitMinutes] = useState(30);
   const { session, loading: sessionLoading } = useLockedInSession();
   const { data: dopamineData, loading: scoreLoading } = useDopamineScore();
   const { count: spikeCount, loading: spikeLoading } = useSelfControlCount();
   const { allowlistMode, loading: allowlistLoading } = useAllowlistMode();
   const loading = tabLoading || status.loading || sessionLoading;
 
+  useEffect(() => {
+    if (!hostname) return;
+    let cancelled = false;
+    setQuickLoading(true);
+    getSettings()
+      .then((settings) => {
+        if (!cancelled) setQuickSettings(settings);
+      })
+      .catch(() => {
+        if (!cancelled) setQuickError("Could not load quick actions.");
+      })
+      .finally(() => {
+        if (!cancelled) setQuickLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hostname]);
+
+  const quickActions =
+    hostname && quickSettings ? getQuickActionState(quickSettings, hostname) : null;
+
+  const saveQuickAction = async (action: QuickAction) => {
+    if (!hostname || quickSaving) return;
+    setQuickSaving(true);
+    setQuickError(null);
+    setQuickSuccess(null);
+    try {
+      // Re-read before saving in case a rule changed in another extension page.
+      const current = await getSettings();
+      const updated = addQuickRule(current, hostname, action);
+      await setSettings(updated);
+      setQuickSettings(updated);
+      setStatusRevision((revision) => revision + 1);
+      setQuickSuccess(
+        action.mode === "block"
+          ? "Site blocked."
+          : `${action.minutes} min limit saved for each reset window.`,
+      );
+    } catch (error) {
+      setQuickError(error instanceof Error ? error.message : "Could not save the rule.");
+    } finally {
+      setQuickSaving(false);
+    }
+  };
+
   const sessionRemaining = useSessionCountdown(session?.endTs ?? null);
 
   const badge = MODE_BADGE[status.mode] ?? MODE_BADGE.unrestricted;
 
-  const usedStr =
-    status.activeSeconds > 0 ? formatTime(status.activeSeconds) : "—";
+  const usedStr = status.activeSeconds > 0 ? formatTime(status.activeSeconds) : "—";
 
   const remStr =
     status.remainingSeconds !== null && status.remainingSeconds > 0
@@ -67,9 +122,7 @@ function Popup() {
     <div className="popup-root">
       <header className="popup-header">
         <span className="popup-wordmark">JustDetox</span>
-        {session && (
-          <span className="popup-locked-in-pill">Locked In</span>
-        )}
+        {session && <span className="popup-locked-in-pill">Locked In</span>}
       </header>
 
       {/* Locked In session banner */}
@@ -78,7 +131,8 @@ function Popup() {
           <div className="popup-session-info">
             <span className="popup-session-time">{formatTime(sessionRemaining)}</span>
             <span className="popup-session-sub">
-              {session.allowedDomains.length} site{session.allowedDomains.length !== 1 ? "s" : ""} allowed
+              {session.allowedDomains.length} site{session.allowedDomains.length !== 1 ? "s" : ""}{" "}
+              allowed
             </span>
           </div>
           <button
@@ -107,9 +161,7 @@ function Popup() {
             <span className="popup-domain" title={hostname}>
               {hostname}
             </span>
-            <span className={`popup-mode-badge ${badge.cls}`}>
-              {badge.label}
-            </span>
+            <span className={`popup-mode-badge ${badge.cls}`}>{badge.label}</span>
           </div>
 
           <div className="popup-stat-grid">
@@ -132,6 +184,69 @@ function Popup() {
           {status.mode === "blocked" && (
             <p className="popup-blocked-notice">This site is blocked.</p>
           )}
+
+          <section className="popup-quick-actions" aria-label="Quick actions">
+            <div className="popup-quick-heading">Quick actions</div>
+            {quickLoading && <p className="popup-quick-note">Loading…</p>}
+            {quickActions && (
+              <>
+                {quickActions.note && <p className="popup-quick-note">{quickActions.note}</p>}
+                {quickActions.canBlock && (
+                  <button
+                    className="btn btn-primary popup-quick-block"
+                    disabled={quickSaving}
+                    onClick={() => void saveQuickAction({ mode: "block" })}
+                  >
+                    Block this site
+                  </button>
+                )}
+                {quickActions.canSetLimit && (
+                  <div className="popup-quick-limit">
+                    <label htmlFor="popup-limit">Time limit</label>
+                    <div className="popup-quick-limit-controls">
+                      <select
+                        id="popup-limit"
+                        className="input"
+                        value={limitMinutes}
+                        disabled={quickSaving}
+                        onChange={(event) => setLimitMinutes(Number(event.target.value))}
+                      >
+                        <option value={15}>15 min</option>
+                        <option value={30}>30 min</option>
+                        <option value={60}>60 min</option>
+                      </select>
+                      <button
+                        className="btn btn-secondary"
+                        disabled={quickSaving}
+                        onClick={() =>
+                          void saveQuickAction({ mode: "limit", minutes: limitMinutes })
+                        }
+                      >
+                        Set limit
+                      </button>
+                    </div>
+                    <p className="popup-quick-note">Per reset window</p>
+                  </div>
+                )}
+                <button
+                  className="btn btn-ghost btn--sm popup-quick-edit"
+                  onClick={() => openAt(quickActions.editHash)}
+                >
+                  {quickActions.editLabel} →
+                </button>
+              </>
+            )}
+            {quickSuccess && (
+              <p className="popup-quick-success" role="status">
+                {quickSuccess}
+              </p>
+            )}
+            {quickError && (
+              <p className="popup-quick-error" role="alert">
+                {quickError}
+              </p>
+            )}
+          </section>
         </main>
       )}
 
@@ -142,7 +257,8 @@ function Popup() {
           <span className="popup-dopamine-value">
             {Math.round(dopamineData.score)}
             <span className="popup-dopamine-status">
-              {" · "}{getScoreStatus(dopamineData.score)}
+              {" · "}
+              {getScoreStatus(dopamineData.score)}
             </span>
           </span>
         </div>

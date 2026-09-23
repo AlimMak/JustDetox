@@ -215,6 +215,8 @@ export interface Settings {
    * behaves as if no rules exist. Only configurable from the Settings panel.
    */
   disabled: boolean;
+  /** Pause tracking after five minutes without device input (screen lock always pauses). */
+  pauseWhenIdle: boolean;
   siteRules: SiteRule[];
   groups: SiteGroup[];
   /**
@@ -355,6 +357,14 @@ export interface SelfControlData {
 
 // ─── Export / Import container ────────────────────────────────────────────────
 
+/** One day of local progress history, retained for at most 30 days. */
+export interface DailyProgress {
+  date: string;
+  activeSeconds: number;
+  blockedAttempts: number;
+  score: number | null;
+}
+
 /** Shape of a JSON backup produced by `exportAll()`. */
 export interface FullExport {
   /** ISO-8601 timestamp of when the export was created. */
@@ -362,6 +372,9 @@ export interface FullExport {
   settings: Settings;
   usage: UsageMap;
   temptations?: TemptationMap;
+  dopamine?: DopamineScoreData;
+  selfControl?: SelfControlData;
+  progressHistory?: DailyProgress[];
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -410,6 +423,7 @@ export const DEFAULT_SELF_CONTROL_DATA: SelfControlData = {
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
   disabled: false,
+  pauseWhenIdle: false,
   siteRules: [],
   groups: [],
   globalBlockList: [],

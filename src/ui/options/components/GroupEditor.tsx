@@ -1,12 +1,13 @@
 // FILE: src/ui/options/components/GroupEditor.tsx
 
 import { useState } from "react";
-import type { SiteGroup, RuleMode, ScheduleWindow } from "../../../core/types";
+import type { Settings, SiteGroup, RuleMode, ScheduleWindow } from "../../../core/types";
 import { Modal } from "./Modal";
 import { DomainPillInput } from "./DomainPillInput";
 import { ScheduleEditor } from "./ScheduleEditor";
 import { generateId } from "../utils/id";
 import { useFriction } from "../context/FrictionContext";
+import { groupWeakeningReasons, newGroupWeakeningReasons } from "../utils/protection";
 
 interface GroupEditorProps {
   group: SiteGroup | null; // null = create new
@@ -14,6 +15,7 @@ interface GroupEditorProps {
   onClose: () => void;
   /** Global default delay seconds (used as initial value for new groups). */
   defaultDelaySeconds?: number;
+  settings: Settings;
 }
 
 interface FormErrors {
@@ -24,7 +26,7 @@ interface FormErrors {
   schedule?: string;
 }
 
-export function GroupEditor({ group, onSave, onClose, defaultDelaySeconds = 15 }: GroupEditorProps) {
+export function GroupEditor({ group, onSave, onClose, defaultDelaySeconds = 15, settings }: GroupEditorProps) {
   const isNew = group === null;
   const [name, setName] = useState(group?.name ?? "");
   const [mode, setMode] = useState<RuleMode>(group?.mode ?? "block");
@@ -77,35 +79,16 @@ export function GroupEditor({ group, onSave, onClose, defaultDelaySeconds = 15 }
       schedule: schedules.length > 0 ? schedules : undefined,
     };
 
-    // Gate checks only apply when editing an existing group, not creating.
-    if (!isNew && group !== null) {
-      const wasBlock = group.mode === "block";
-      const newLimitMins = parseInt(limitMinutes, 10);
-      const oldLimitMins = group.limitMinutes ?? 0;
-
-      // Domain removal: detect domains present in the original but missing now.
-      const removedDomains = group.domains.filter((d) => !domains.includes(d));
-      if (removedDomains.length > 0) {
-        const ok = await askFriction({
-          actionType: "remove-domain",
-          label: `${saved.name} — remove ${removedDomains.join(", ")}`,
-        });
-        if (!ok) return;
-      }
-
-      if (wasBlock && mode === "limit") {
-        const ok = await askFriction({
-          actionType: "group-block-to-limit",
-          label: `${saved.name} — block → time limit`,
-        });
-        if (!ok) return;
-      } else if (group.mode === "limit" && mode === "limit" && newLimitMins > oldLimitMins) {
-        const ok = await askFriction({
-          actionType: "group-limit-increase",
-          label: `${saved.name} — limit ${oldLimitMins}min → ${newLimitMins}min`,
-        });
-        if (!ok) return;
-      }
+    const reasons = group === null
+      ? newGroupWeakeningReasons(saved, settings)
+      : groupWeakeningReasons(group, saved, defaultDelaySeconds);
+    if (reasons.length > 0) {
+      const ok = await askFriction({
+        actionType: "weaken-group-rule",
+        label: `${saved.name} — group changes`,
+        context: reasons,
+      });
+      if (!ok) return;
     }
 
     onSave(saved);

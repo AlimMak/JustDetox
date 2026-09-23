@@ -3,6 +3,8 @@ import { getUsage, getTemptations, getDopamineScore } from "../../../core/storag
 import { sumUsageUnder } from "../../../core/match";
 import type { Settings, UsageMap, TemptationMap, DopamineScoreData } from "../../../core/types";
 import { DEFAULT_DOPAMINE_SCORE } from "../../../core/types";
+import { getProgressHistory, type DailyProgress } from "../../../core/history";
+import { currentTemptations, currentUsage, sumTrackedSeconds } from "../utils/dashboardStats";
 
 export interface DomainStat {
   hostname: string;
@@ -41,28 +43,47 @@ export function useDashboard(settings: Settings) {
     windowStartTs: Date.now(),
   });
   const [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState<DailyProgress[]>([]);
+  const [loadedAt, setLoadedAt] = useState(Date.now());
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [u, t, d] = await Promise.all([getUsage(), getTemptations(), getDopamineScore()]);
-    setUsage(u);
-    setTemptations(t);
-    setDopamineScore(d);
-    setLoading(false);
+    try {
+      const [u, t, d, h] = await Promise.all([getUsage(), getTemptations(), getDopamineScore(), getProgressHistory()]);
+      setUsage(u);
+      setTemptations(t);
+      setDopamineScore(d);
+      setHistory(h);
+      setLoadedAt(Date.now());
+      setError(null);
+    } catch {
+      setError("Could not load local progress data. Try refreshing.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const activeUsage = useMemo((): UsageMap => {
+    return currentUsage(usage, settings.resetWindow.intervalHours, loadedAt);
+  }, [usage, settings.resetWindow.intervalHours, loadedAt]);
+
+  const activeTemptations = useMemo((): TemptationMap => {
+    return currentTemptations(temptations, settings.resetWindow.intervalHours, loadedAt);
+  }, [temptations, settings.resetWindow.intervalHours, loadedAt]);
+
   /** Top 10 domains by active seconds, descending. Only non-zero entries. */
   const domainStats = useMemo((): DomainStat[] => {
-    return Object.entries(usage)
+    return Object.entries(activeUsage)
       .filter(([, u]) => u.activeSeconds > 0)
       .map(([hostname, u]) => ({ hostname, activeSeconds: u.activeSeconds }))
       .sort((a, b) => b.activeSeconds - a.activeSeconds)
       .slice(0, 10);
-  }, [usage]);
+  }, [activeUsage]);
 
   /**
    * One entry per group that has any recorded usage or temptation attempts.
@@ -77,26 +98,26 @@ export function useDashboard(settings: Settings) {
         domainCount: g.domains.length,
         mode: g.mode,
         activeSeconds: g.domains.reduce(
-          (sum, d) => sum + sumUsageUnder(d, usage),
+          (sum, d) => sum + sumUsageUnder(d, activeUsage),
           0,
         ),
         totalAttempts: g.domains.reduce(
-          (sum, d) => sum + (temptations[d]?.attempts ?? 0),
+          (sum, d) => sum + (activeTemptations[d]?.attempts ?? 0),
           0,
         ),
       }))
       .filter((g) => g.activeSeconds > 0 || g.totalAttempts > 0)
       .sort((a, b) => b.activeSeconds - a.activeSeconds);
-  }, [settings.groups, usage, temptations]);
+  }, [settings.groups, activeUsage, activeTemptations]);
 
   /** Total seconds tracked across all domains in the current window. */
   const totalSeconds = useMemo(() => {
-    return domainStats.reduce((s, d) => s + d.activeSeconds, 0);
-  }, [domainStats]);
+    return sumTrackedSeconds(activeUsage);
+  }, [activeUsage]);
 
   /** Top 10 domains by temptation attempts, descending. Only non-zero entries. */
   const temptationStats = useMemo((): TemptationStat[] => {
-    return Object.entries(temptations)
+    return Object.entries(activeTemptations)
       .filter(([, t]) => t.attempts > 0)
       .map(([hostname, t]) => ({
         hostname,
@@ -105,7 +126,7 @@ export function useDashboard(settings: Settings) {
       }))
       .sort((a, b) => b.attempts - a.attempts)
       .slice(0, 10);
-  }, [temptations]);
+  }, [activeTemptations]);
 
-  return { domainStats, groupStats, temptationStats, totalSeconds, dopamineScore, loading, refresh: load };
+  return { domainStats, groupStats, temptationStats, totalSeconds, dopamineScore, history, loading, error, refresh: load };
 }

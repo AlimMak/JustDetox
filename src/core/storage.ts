@@ -28,6 +28,7 @@ import {
   selfControlDataSchema,
 } from "./validation";
 import type { ImportResult } from "./validation";
+import { getProgressHistory, setProgressHistory, waitForProgressHistoryUpdates } from "./history";
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 
@@ -114,10 +115,15 @@ export async function updateSettings(patch: Partial<Settings>): Promise<Settings
  * Returns an empty map if absent or invalid.
  */
 export async function getUsage(): Promise<UsageMap> {
+  const intervalMs = (await getSettings()).resetWindow.intervalHours * 3_600_000;
+  const now = Date.now();
+  const currentOnly = (map: UsageMap): UsageMap => Object.fromEntries(
+    Object.entries(map).filter(([, record]) => record.windowStartTs + intervalMs > now),
+  );
   // Write-back cache: return the pending value if a write is queued,
   // avoiding read-after-write staleness in the same SW activation.
   const cached = readThrough(KEY_USAGE);
-  if (cached !== undefined) return cached as UsageMap;
+  if (cached !== undefined) return currentOnly(cached as UsageMap);
 
   const result = await storageGet<unknown>(KEY_USAGE);
   const raw = result[KEY_USAGE];
@@ -133,7 +139,7 @@ export async function getUsage(): Promise<UsageMap> {
     return {};
   }
 
-  return parsed.data as UsageMap;
+  return currentOnly(parsed.data as UsageMap);
 }
 
 /**
@@ -202,8 +208,13 @@ export async function resetAllUsage(): Promise<void> {
  * Returns an empty map if absent or invalid.
  */
 export async function getTemptations(): Promise<TemptationMap> {
+  const intervalMs = (await getSettings()).resetWindow.intervalHours * 3_600_000;
+  const now = Date.now();
+  const currentOnly = (map: TemptationMap): TemptationMap => Object.fromEntries(
+    Object.entries(map).filter(([, record]) => record.windowStartTs + intervalMs > now),
+  );
   const cached = readThrough(KEY_TEMPTATIONS);
-  if (cached !== undefined) return cached as TemptationMap;
+  if (cached !== undefined) return currentOnly(cached as TemptationMap);
 
   const result = await storageGet<unknown>(KEY_TEMPTATIONS);
   const raw = result[KEY_TEMPTATIONS];
@@ -219,7 +230,7 @@ export async function getTemptations(): Promise<TemptationMap> {
     return {};
   }
 
-  return parsed.data as TemptationMap;
+  return currentOnly(parsed.data as TemptationMap);
 }
 
 /** Queue the full temptation map for batched persistence. */
@@ -246,12 +257,16 @@ export async function resetAllTemptations(): Promise<void> {
  */
 export async function exportAll(): Promise<string> {
   // Flush any queued writes so the export reflects the latest state.
+  await waitForProgressHistoryUpdates();
   await forceFlushStorageQueue();
 
-  const [settings, usage, temptations] = await Promise.all([
+  const [settings, usage, temptations, dopamine, selfControl, progressHistory] = await Promise.all([
     getSettings(),
     getUsage(),
     getTemptations(),
+    getDopamineScore(),
+    getSelfControlData(),
+    getProgressHistory(),
   ]);
 
   const payload: FullExport = {
@@ -259,6 +274,9 @@ export async function exportAll(): Promise<string> {
     settings,
     usage,
     temptations,
+    dopamine,
+    selfControl,
+    progressHistory,
   };
 
   return JSON.stringify(payload, null, 2);
@@ -289,12 +307,26 @@ export async function importAll(json: string): Promise<ImportResult> {
   }
 
   // Drain any stale queued writes before overwriting with imported data.
+  await waitForProgressHistoryUpdates();
   await forceFlushStorageQueue();
 
-  // setSettings writes immediately; setUsage/setTemptations queue their writes.
+  // A settings-only backup preserves measurements and active time limits.
+  // A full backup replaces the measurement set as one unit; older full
+  // backups default the newer score/history fields to empty state.
   await setSettings(validated.data.settings as Settings);
-  setUsage((validated.data.usage ?? {}) as UsageMap);
-  setTemptations((validated.data.temptations ?? {}) as TemptationMap);
+  if (validated.data.usage !== undefined) {
+    setUsage(validated.data.usage as UsageMap);
+    setTemptations((validated.data.temptations ?? {}) as TemptationMap);
+    setDopamineScore((validated.data.dopamine ?? {
+      ...DEFAULT_DOPAMINE_SCORE,
+      windowStartTs: Date.now(),
+    }) as DopamineScoreData);
+    setSelfControlData((validated.data.selfControl ?? {
+      ...DEFAULT_SELF_CONTROL_DATA,
+      windowStartTs: Date.now(),
+    }) as SelfControlData);
+    setProgressHistory(validated.data.progressHistory ?? []);
+  }
 
   // Flush queued usage + temptation writes before returning success.
   await forceFlushStorageQueue();
@@ -310,8 +342,14 @@ export async function importAll(json: string): Promise<ImportResult> {
  * Returns the default (score = 100, no counters) if absent or invalid.
  */
 export async function getDopamineScore(): Promise<DopamineScoreData> {
+  const intervalMs = (await getSettings()).resetWindow.intervalHours * 3_600_000;
+  const now = Date.now();
+  const currentOnly = (data: DopamineScoreData): DopamineScoreData =>
+    data.windowStartTs > 0 && data.windowStartTs + intervalMs <= now
+      ? { ...DEFAULT_DOPAMINE_SCORE, previousWindowScore: data.score, windowStartTs: now }
+      : data;
   const cached = readThrough(KEY_DOPAMINE);
-  if (cached !== undefined) return cached as DopamineScoreData;
+  if (cached !== undefined) return currentOnly(cached as DopamineScoreData);
 
   const result = await storageGet<unknown>(KEY_DOPAMINE);
   const raw = result[KEY_DOPAMINE];
@@ -327,7 +365,7 @@ export async function getDopamineScore(): Promise<DopamineScoreData> {
     return { ...DEFAULT_DOPAMINE_SCORE, windowStartTs: Date.now() };
   }
 
-  return parsed.data as DopamineScoreData;
+  return currentOnly(parsed.data as DopamineScoreData);
 }
 
 /**
@@ -346,8 +384,14 @@ export function setDopamineScore(data: DopamineScoreData): void {
  * Returns an empty log with windowStartTs = now if absent or invalid.
  */
 export async function getSelfControlData(): Promise<SelfControlData> {
+  const intervalMs = (await getSettings()).resetWindow.intervalHours * 3_600_000;
+  const now = Date.now();
+  const currentOnly = (data: SelfControlData): SelfControlData =>
+    data.windowStartTs > 0 && data.windowStartTs + intervalMs <= now
+      ? { ...DEFAULT_SELF_CONTROL_DATA, previousWindowCount: data.events.length, windowStartTs: now }
+      : data;
   const cached = readThrough(KEY_SELF_CONTROL);
-  if (cached !== undefined) return cached as SelfControlData;
+  if (cached !== undefined) return currentOnly(cached as SelfControlData);
 
   const result = await storageGet<unknown>(KEY_SELF_CONTROL);
   const raw = result[KEY_SELF_CONTROL];
@@ -363,7 +407,7 @@ export async function getSelfControlData(): Promise<SelfControlData> {
     return { ...DEFAULT_SELF_CONTROL_DATA, windowStartTs: Date.now() };
   }
 
-  return parsed.data as SelfControlData;
+  return currentOnly(parsed.data as SelfControlData);
 }
 
 /**

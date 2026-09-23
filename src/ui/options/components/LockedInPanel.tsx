@@ -19,6 +19,7 @@ import type { Settings, LockedInSession, TemptationMap } from "../../../core/typ
 import { getTemptations } from "../../../core/storage";
 import { DomainPillInput } from "./DomainPillInput";
 import { formatTime } from "../../popup/utils/formatTime";
+import { useFriction } from "../context/FrictionContext";
 
 interface LockedInPanelProps {
   settings: Settings;
@@ -235,7 +236,7 @@ function StartFlow({ settings, onStart }: StartFlowProps) {
   const canProceedStep2 = domainsValid;
 
   const handleStart = () => {
-    if (!durationValid || !domainsValid) return;
+    if (!durationValid || !domainsValid || settings.allowlistMode.enabled) return;
     const now = Date.now();
     const session: LockedInSession = {
       active: true,
@@ -260,6 +261,15 @@ function StartFlow({ settings, onStart }: StartFlowProps) {
           </p>
         </div>
       </div>
+
+      {settings.allowlistMode.enabled && (
+        <div className="empty-state" style={{ marginBottom: "var(--sp-4)" }}>
+          <p className="empty-state__heading">Focus Environment is active</p>
+          <p className="empty-state__body">
+            Focus Environment takes priority over Locked In. Turn it off in Settings before starting a session.
+          </p>
+        </div>
+      )}
 
       {/* Step progress */}
       <div className="locked-in-steps">
@@ -480,7 +490,7 @@ function StartFlow({ settings, onStart }: StartFlowProps) {
             <button className="btn btn-secondary" onClick={() => set("step", 2)}>
               ← Back
             </button>
-            <button className="btn btn-primary" onClick={handleStart}>
+            <button className="btn btn-primary" onClick={handleStart} disabled={settings.allowlistMode.enabled}>
               Start Session
             </button>
           </div>
@@ -494,14 +504,21 @@ function StartFlow({ settings, onStart }: StartFlowProps) {
 
 export function LockedInPanel({ settings, patch }: LockedInPanelProps) {
   const session = settings.lockedInSession;
-  const isActive = Boolean(session?.active);
+  const isActive = Boolean(session?.active && Date.now() < session.endTs);
+  const { askFriction } = useFriction();
 
   const handleStart = (newSession: LockedInSession) => {
     patch({ lockedInSession: newSession });
   };
 
-  const handleEnd = () => {
+  const handleEnd = async () => {
     if (!session) return;
+    const ok = await askFriction({
+      actionType: "end-locked-in-session",
+      label: "End Locked In session early",
+      context: [`${Math.max(1, Math.ceil((session.endTs - Date.now()) / 60_000))} minutes remaining`],
+    });
+    if (!ok) return;
     patch({ lockedInSession: { ...session, active: false } });
   };
 
@@ -510,7 +527,7 @@ export function LockedInPanel({ settings, patch }: LockedInPanelProps) {
       <ActiveSessionView
         session={session}
         settings={settings}
-        onEnd={handleEnd}
+        onEnd={() => void handleEnd()}
       />
     );
   }

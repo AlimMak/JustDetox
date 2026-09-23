@@ -28,7 +28,7 @@ const IDLE_STATUS: SiteStatus = {
  * Loads settings + usage from storage and computes the block/limit status for
  * the given hostname. Re-runs whenever the hostname changes.
  */
-export function useSiteStatus(hostname: string | null): SiteStatus {
+export function useSiteStatus(hostname: string | null, revision = 0): SiteStatus {
   const [status, setStatus] = useState<SiteStatus>({ ...IDLE_STATUS, loading: hostname !== null });
 
   useEffect(() => {
@@ -44,7 +44,14 @@ export function useSiteStatus(hostname: string | null): SiteStatus {
         // Master kill-switch: show unrestricted when extension is disabled.
         if (settings.disabled) {
           const activeSeconds = usage[hostname]?.activeSeconds ?? 0;
-          setStatus({ loading: false, error: null, mode: "unrestricted", blocked: false, remainingSeconds: null, activeSeconds });
+          setStatus({
+            loading: false,
+            error: null,
+            mode: "unrestricted",
+            blocked: false,
+            remainingSeconds: null,
+            activeSeconds,
+          });
           return;
         }
 
@@ -61,7 +68,7 @@ export function useSiteStatus(hostname: string | null): SiteStatus {
           error: err instanceof Error ? err.message : "Failed to load status",
         });
       });
-  }, [hostname]);
+  }, [hostname, revision]);
 
   return status;
 }

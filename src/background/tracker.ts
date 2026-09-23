@@ -31,6 +31,7 @@ import { forceFlushStorageQueue } from "../core/storageQueue";
 import type { DomainUsage, UsageMap } from "../core/types";
 import { checkLockedInExpiry } from "./lockedIn";
 import { triggerRecalculation } from "../core/dopamine";
+import { recordDailyUsage } from "../core/history";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,7 @@ const ALARM_PERIOD_MINUTES = 1;
  * any gap caused by the computer sleeping or the SW being idle for a long time.
  */
 const FLUSH_CAP_MS = 90_000;
+const IDLE_THRESHOLD_SECONDS = 5 * 60;
 
 // ─── Session state ────────────────────────────────────────────────────────────
 
@@ -98,6 +100,24 @@ function logErr(label: string) {
   };
 }
 
+/** A locked screen always pauses; lack of input pauses only when selected. */
+export function shouldTrackForIdleState(
+  state: chrome.idle.IdleState,
+  pauseWhenIdle: boolean,
+): boolean {
+  return state !== "locked" && (!pauseWhenIdle || state === "active");
+}
+
+async function isUserActive(pauseWhenIdle: boolean): Promise<boolean> {
+  try {
+    const state = await chrome.idle.queryState(IDLE_THRESHOLD_SECONDS);
+    return shouldTrackForIdleState(state, pauseWhenIdle);
+  } catch {
+    // Older browser builds should continue tracking rather than break the app.
+    return true;
+  }
+}
+
 // ─── Pure helpers (exported for tests) ───────────────────────────────────────
 
 /**
@@ -133,6 +153,7 @@ async function accumulateTime(domain: string, elapsedSeconds: number): Promise<v
   if (elapsedSeconds <= 0) return;
 
   const [settings, usage] = await Promise.all([getSettings(), getUsage()]);
+  if (settings.disabled) return;
   const intervalHours = settings.resetWindow.intervalHours;
   const now = Date.now();
 
@@ -155,6 +176,7 @@ async function accumulateTime(domain: string, elapsedSeconds: number): Promise<v
   };
 
   await setUsage(updated);
+  await recordDailyUsage(elapsedSeconds);
   triggerRecalculation();
 }
 
@@ -164,10 +186,14 @@ async function accumulateTime(domain: string, elapsedSeconds: number): Promise<v
  * Calculate elapsed time for the active domain, cap it, and write to storage.
  * Does NOT update `lastFlushTs` — callers must do that after calling this.
  */
-async function flushCurrent(now: number): Promise<void> {
+async function flushCurrent(now: number, allowIdle = false): Promise<void> {
   const session = await sessionGet();
 
   if (!session.activeDomain || session.lastFlushTs === 0) return;
+  if (!allowIdle) {
+    const settings = await getSettings();
+    if (!(await isUserActive(settings.pauseWhenIdle))) return;
+  }
 
   const elapsedSeconds = computeElapsedSeconds(session.lastFlushTs, now);
   if (elapsedSeconds <= 0) return;
@@ -188,6 +214,11 @@ async function switchActiveDomain(
 ): Promise<void> {
   const now = Date.now();
   await flushCurrent(now);
+  if (newDomain) {
+    const settings = await getSettings();
+    const active = await isUserActive(settings.pauseWhenIdle);
+    if (!active || settings.disabled) newDomain = null;
+  }
   await sessionSet({
     activeDomain: newDomain,
     lastFlushTs: newDomain !== null ? now : 0,
@@ -277,6 +308,13 @@ async function handleTabUpdated(
   // Only act if this is the active tab in the focused window.
   const active = await queryActiveFocusedTab();
   if (!active || active.id !== tabId) return;
+  try {
+    const win = await chrome.windows.get(active.windowId);
+    if (!win.focused) return;
+  } catch {
+    // The window may have closed during navigation.
+    return;
+  }
 
   const domain = isTrackable(changeInfo.url) ? hostnameFrom(changeInfo.url) : null;
   await switchActiveDomain(domain, tabId, active.windowId);
@@ -298,6 +336,12 @@ async function handleWindowRemoved(windowId: number): Promise<void> {
 
 async function handleAlarmTick(): Promise<void> {
   const now = Date.now();
+  const settings = await getSettings();
+  if (!(await isUserActive(settings.pauseWhenIdle))) {
+    await sessionSet({ ...SESSION_DEFAULTS });
+    await checkLockedInExpiry();
+    return;
+  }
   await flushCurrent(now);
 
   // Advance lastFlushTs so the next tick measures from now.
@@ -340,7 +384,7 @@ export async function recoverState(): Promise<void> {
   await flushCurrent(now);
 
   // Only start tracking if a browser window is currently focused.
-  const tab = await queryActiveFocusedTab();
+  const [tab, settings] = await Promise.all([queryActiveFocusedTab(), getSettings()]);
   let domain: string | null = null;
   let tabId: number | null = null;
   let windowId: number | null = null;
@@ -348,7 +392,7 @@ export async function recoverState(): Promise<void> {
   if (tab) {
     try {
       const win = await chrome.windows.get(tab.windowId);
-      if (win.focused && isTrackable(tab.url)) {
+      if (!settings.disabled && win.focused && (await isUserActive(settings.pauseWhenIdle)) && isTrackable(tab.url)) {
         domain = hostnameFrom(tab.url);
         tabId = tab.id ?? null;
         windowId = tab.windowId;
@@ -364,6 +408,12 @@ export async function recoverState(): Promise<void> {
     tabId: domain !== null ? tabId : null,
     windowId: domain !== null ? windowId : null,
   });
+}
+
+/** Prevent time before a manual data clear from returning on the next tick. */
+export async function resetTrackingBaseline(): Promise<void> {
+  const session = await sessionGet();
+  if (session.activeDomain) await sessionSet({ lastFlushTs: Date.now() });
 }
 
 /**
@@ -382,6 +432,7 @@ export async function recoverState(): Promise<void> {
  *  - chrome.runtime.onSuspend   (final flush + advance lastFlushTs before SW sleeps)
  */
 export function initTracker(): void {
+  chrome.idle.setDetectionInterval(IDLE_THRESHOLD_SECONDS);
   ensureAlarm();
   recoverState().catch(logErr("recoverState"));
 
@@ -403,6 +454,31 @@ export function initTracker(): void {
 
   chrome.windows.onRemoved.addListener((windowId) => {
     handleWindowRemoved(windowId).catch(logErr("onWindowRemoved"));
+  });
+
+  chrome.idle.onStateChanged.addListener((state) => {
+    getSettings().then((settings) => {
+      if (state === "active") {
+        return recoverState();
+      }
+      if (state === "locked" || (state === "idle" && settings.pauseWhenIdle)) {
+        const now = Date.now();
+        return flushCurrent(now, true)
+          .then(() => sessionSet({ ...SESSION_DEFAULTS }));
+      }
+    }).catch(logErr("onIdleStateChanged"));
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes.jd_settings) return;
+    const before = changes.jd_settings.oldValue as { disabled?: boolean; pauseWhenIdle?: boolean } | undefined;
+    const after = changes.jd_settings.newValue as { disabled?: boolean; pauseWhenIdle?: boolean } | undefined;
+    if (before?.disabled === after?.disabled && before?.pauseWhenIdle === after?.pauseWhenIdle) return;
+    if (after?.disabled) {
+      sessionSet({ ...SESSION_DEFAULTS }).catch(logErr("onDisabled"));
+    } else {
+      recoverState().catch(logErr("onEnabled"));
+    }
   });
 
   chrome.alarms.onAlarm.addListener((alarm) => {

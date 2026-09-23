@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeElapsedSeconds } from "../tracker";
+import { computeElapsedSeconds, shouldTrackForIdleState } from "../tracker";
 
 // ─── computeElapsedSeconds ────────────────────────────────────────────────────
 
@@ -68,5 +68,18 @@ describe("computeElapsedSeconds", () => {
 
   it("handles a custom cap of 0 (always returns 0)", () => {
     expect(computeElapsedSeconds(0, 60_000, 0)).toBe(0);
+  });
+});
+
+describe("idle tracking", () => {
+  it("always pauses on screen lock", () => {
+    expect(shouldTrackForIdleState("locked", false)).toBe(false);
+    expect(shouldTrackForIdleState("locked", true)).toBe(false);
+  });
+
+  it("lets users choose whether lack of input pauses time limits", () => {
+    expect(shouldTrackForIdleState("idle", false)).toBe(true);
+    expect(shouldTrackForIdleState("idle", true)).toBe(false);
+    expect(shouldTrackForIdleState("active", true)).toBe(true);
   });
 });

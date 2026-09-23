@@ -44,6 +44,8 @@ const DEBOUNCE_MS = 1_000;
  *     even before it has been committed to chrome.storage.local.
  */
 const pendingWrites = new Map<string, unknown>();
+/** Snapshot currently being committed, kept readable until the write finishes. */
+let inFlightWrites = new Map<string, unknown>();
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -51,7 +53,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
  * When a flush is in progress, holds its promise so that concurrent
  * `flushStorageQueue()` calls share the same flush rather than stacking.
  */
-let flushInProgress: Promise<void> | null = null;
+let flushInProgress: Promise<boolean> | null = null;
 
 // ─── Debug counters (dev only) ────────────────────────────────────────────────
 
@@ -79,7 +81,7 @@ function scheduleFlush(): void {
   if (debounceTimer !== null) return; // already scheduled
   debounceTimer = setTimeout(() => {
     debounceTimer = null;
-    void doFlush();
+    void flushStorageQueue();
   }, DEBOUNCE_MS);
 }
 
@@ -91,14 +93,17 @@ function _restoreSnapshot(snapshot: Record<string, unknown>): void {
   }
 }
 
-async function doFlush(): Promise<void> {
-  if (pendingWrites.size === 0) return;
+async function doFlush(): Promise<boolean> {
+  if (pendingWrites.size === 0) return true;
 
   // Snapshot and clear the cache BEFORE the async write.
   // Writes that arrive during the flush go into a fresh queue entry and
   // are picked up by the next scheduled flush.
   const snapshot = Object.fromEntries(pendingWrites);
   pendingWrites.clear();
+  inFlightWrites = new Map(Object.entries(snapshot));
+
+  let succeeded = true;
 
   if (import.meta.env.DEV) {
     const keyCount = Object.keys(snapshot).length;
@@ -113,6 +118,7 @@ async function doFlush(): Promise<void> {
           `(${_stats.setCallsSaved} writes coalesced so far)`,
       );
     } catch (err) {
+      succeeded = false;
       _restoreSnapshot(snapshot);
       // eslint-disable-next-line no-console
       console.error("[JustDetox queue] flush failed — retaining data:", err);
@@ -121,14 +127,27 @@ async function doFlush(): Promise<void> {
     try {
       await rawSet(snapshot);
     } catch (err) {
+      succeeded = false;
       _restoreSnapshot(snapshot);
       // eslint-disable-next-line no-console
       console.error("[JustDetox queue] flush failed:", err);
     }
   }
 
+  inFlightWrites.clear();
+
   // If new writes arrived during the flush, schedule another pass.
   if (pendingWrites.size > 0) scheduleFlush();
+  return succeeded;
+}
+
+function startFlush(): Promise<boolean> {
+  if (flushInProgress !== null) return flushInProgress;
+  if (pendingWrites.size === 0) return Promise.resolve(true);
+  flushInProgress = doFlush().finally(() => {
+    flushInProgress = null;
+  });
+  return flushInProgress;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -160,7 +179,7 @@ export function queueStorageReplace(key: string, value: unknown): void {
  *   readThrough("jd_usage");  // → updatedMap  (not stale storage value)
  */
 export function readThrough(key: string): unknown {
-  return pendingWrites.get(key);
+  return pendingWrites.has(key) ? pendingWrites.get(key) : inFlightWrites.get(key);
 }
 
 /**
@@ -170,12 +189,7 @@ export function readThrough(key: string): unknown {
  * For a strict "all data is persisted" guarantee, use `forceFlushStorageQueue`.
  */
 export async function flushStorageQueue(): Promise<void> {
-  if (flushInProgress !== null) return flushInProgress;
-  if (pendingWrites.size === 0) return;
-  flushInProgress = doFlush().finally(() => {
-    flushInProgress = null;
-  });
-  return flushInProgress;
+  await startFlush();
 }
 
 /**
@@ -196,13 +210,12 @@ export async function forceFlushStorageQueue(): Promise<void> {
     debounceTimer = null;
   }
 
-  // Wait for an in-progress flush before starting a new one.
-  if (flushInProgress !== null) {
-    await flushInProgress.catch(() => {});
-  }
-
-  if (pendingWrites.size > 0) {
-    await doFlush();
+  // A write may arrive while an earlier snapshot is being committed. Keep
+  // draining until that write also reaches storage. If Chrome rejects a write,
+  // leave it queued and reject critical operations such as backup and import.
+  while (flushInProgress !== null || pendingWrites.size > 0) {
+    const succeeded = await startFlush();
+    if (!succeeded) throw new Error("Storage write failed; pending data retained for retry.");
   }
 }
 
@@ -225,6 +238,7 @@ export function _resetQueueForTesting(): void {
     debounceTimer = null;
   }
   pendingWrites.clear();
+  inFlightWrites.clear();
   flushInProgress = null;
   _stats.enqueued = 0;
   _stats.flushes = 0;

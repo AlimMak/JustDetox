@@ -10,10 +10,11 @@ import { useFriction } from "../context/FrictionContext";
 interface SitesPanelProps {
   settings: Settings;
   patch: (update: Partial<Settings>) => void;
+  focusSite?: { hostname: string; request: number } | null;
 }
 
-export function SitesPanel({ settings, patch }: SitesPanelProps) {
-  const [editing, setEditing] = useState<SiteRule | null | "new">(null);
+export function SitesPanel({ settings, patch, focusSite }: SitesPanelProps) {
+  const [editing, setEditing] = useState<SiteRule | { draftDomain: string } | null>(null);
   const [search, setSearch] = useState("");
   const [temptations, setTemptationMap] = useState<TemptationMap>({});
   const { askFriction } = useFriction();
@@ -21,6 +22,13 @@ export function SitesPanel({ settings, patch }: SitesPanelProps) {
   useEffect(() => {
     getTemptations().then(setTemptationMap).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!focusSite) return;
+    setEditing(settings.siteRules.find((rule) => rule.domain === focusSite.hostname) ?? { draftDomain: focusSite.hostname });
+    // The request identifier changes for every dashboard selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusSite?.request]);
 
   const saveRule = (saved: SiteRule) => {
     const exists = settings.siteRules.some((r) => r.domain === saved.domain);
@@ -72,7 +80,7 @@ export function SitesPanel({ settings, patch }: SitesPanelProps) {
             Per-site rules override any group or global setting.
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setEditing("new")}>
+        <button className="btn btn-primary" onClick={() => setEditing({ draftDomain: "" })}>
           + Add rule
         </button>
       </div>
@@ -155,13 +163,15 @@ export function SitesPanel({ settings, patch }: SitesPanelProps) {
 
       {editing !== null && (
         <SiteEditor
-          rule={editing === "new" ? null : editing}
+          rule={"draftDomain" in editing ? null : editing}
+          initialDomain={"draftDomain" in editing ? editing.draftDomain : undefined}
           onSave={saveRule}
           onClose={() => setEditing(null)}
           attemptCount={
-            editing !== "new" ? (temptations[editing.domain]?.attempts ?? 0) : undefined
+            "draftDomain" in editing ? undefined : (temptations[editing.domain]?.attempts ?? 0)
           }
           defaultDelaySeconds={settings.defaultDelaySeconds}
+          settings={settings}
         />
       )}
     </div>
