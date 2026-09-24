@@ -2,10 +2,16 @@ export interface BackgroundCommandResult {
   ok: boolean;
   error?: string;
   json?: string;
+  enabled?: boolean;
+  pending?: boolean;
+  remoteRevision?: number | null;
+  remoteSettings?: import("../../../core/types").Settings | null;
 }
 
 /** Send a storage command to the service worker, where pending writes are serialized. */
-export function sendBackgroundCommand(message: { type: string; json?: string }): Promise<BackgroundCommandResult> {
+export function sendBackgroundCommand(message: {
+  type: string; json?: string; action?: "upload" | "download" | "disable"; revision?: number | null;
+}): Promise<BackgroundCommandResult> {
   return new Promise((resolve) => {
     try {
       chrome.runtime.sendMessage(message, (response: unknown) => {

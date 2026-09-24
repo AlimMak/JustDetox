@@ -2,7 +2,7 @@
  * Message types for communication between content scripts and background.
  */
 
-export type MessageType = "CHECK_URL" | "RECORD_TIME" | "GET_STORAGE" | "DELAY_COMPLETED" | "CLEAR_TRACKED_DATA" | "IMPORT_ALL" | "EXPORT_ALL";
+export type MessageType = "CHECK_URL" | "RECORD_TIME" | "GET_STORAGE" | "DELAY_COMPLETED" | "CLEAR_TRACKED_DATA" | "IMPORT_ALL" | "EXPORT_ALL" | "GET_SYNC_STATUS" | "SYNC_ACTION";
 
 export type CheckUrlContext = "navigation" | "refresh" | "iframe";
 
@@ -41,7 +41,14 @@ export interface ExportAllMessage {
   type: "EXPORT_ALL";
 }
 
-export type ExtensionMessage = CheckUrlMessage | RecordTimeMessage | GetStorageMessage | DelayCompletedMessage | ClearTrackedDataMessage | ImportAllMessage | ExportAllMessage;
+export interface GetSyncStatusMessage { type: "GET_SYNC_STATUS" }
+export interface SyncActionMessage {
+  type: "SYNC_ACTION";
+  action: "upload" | "download" | "disable";
+  revision?: number | null;
+}
+
+export type ExtensionMessage = CheckUrlMessage | RecordTimeMessage | GetStorageMessage | DelayCompletedMessage | ClearTrackedDataMessage | ImportAllMessage | ExportAllMessage | GetSyncStatusMessage | SyncActionMessage;
 
 export interface ClearTrackedDataResponse {
   ok: boolean;

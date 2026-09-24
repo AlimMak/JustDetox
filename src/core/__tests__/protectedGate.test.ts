@@ -47,6 +47,15 @@ describe("import protection diff", () => {
     expect(computeImportDiff(before, after).reductions).toContain("Protected Gate disabled");
   });
 
+  it("flags turning off pre-load protection", () => {
+    const before = settings();
+    before.preloadBlocking = true;
+    const after = structuredClone(before);
+    after.preloadBlocking = false;
+    expect(computeImportDiff(before, after).reductions)
+      .toContain("Pre-load blocking will be turned off");
+  });
+
   it("flags a focus allowlist that bypasses an existing block", () => {
     const before = settings();
     before.siteRules = [{ domain: "example.com", mode: "block", enabled: true }];

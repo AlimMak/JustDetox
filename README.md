@@ -15,12 +15,17 @@ A free, open-source Chrome extension (Manifest V3) that blocks or time-limits we
 - **Category packs** — start with common distractions and adjust the generated rules
 - **Local progress** — current-window usage, blocked attempts, score details, and 30 days of daily totals
 - **Quick popup actions** — block or limit the active site without opening the full settings page
+- **Rule Preview** — check the rule that would apply to a website at a chosen time
+- **Pre-load blocking** — opt in to browser-level redirects before blocked pages and embeds load
+- **Weekly review and goal** — local focus-session time, browsing time, and blocked attempts
+- **Focus presets** — save a Locked In setup and start it in one click
+- **Settings sync** — optionally sync rules, goals, and presets through Chrome Sync
 - **Protection gates** — optional cooldown and confirmation before weakening rules
 - **Master disable toggle** — pause blocking and tracking without deleting rules
 - Usage reset window: 1–168 h (presets and custom value)
 - Device-idle awareness: tracking pauses on screen lock; optional setting pauses after five minutes without input
-- Permissions: `storage`, `tabs`, `alarms`, `idle`; no `host_permissions` entry
-- No accounts, no telemetry — all data stays in your browser
+- Permissions: `storage`, `tabs`, `alarms`, `idle`, `declarativeNetRequestWithHostAccess`; pre-load blocking asks separately for website access
+- No JustDetox account or telemetry — usage history stays local; settings enter Chrome Sync only when you turn it on
 - Dark theme UI built with React + TypeScript
 
 ---
@@ -64,8 +69,11 @@ This outputs the unpacked extension to `dist/`.
 | `tabs` | Read the active tab's URL to enforce rules; open the options/onboarding page on install |
 | `alarms` | Drive the one-minute usage-flush cycle and session expiry checks |
 | `idle` | Detect screen lock and, when selected, five minutes without device input |
+| `declarativeNetRequestWithHostAccess` plus optional `<all_urls>` host access | Redirect blocked page and iframe navigations before they load, only when pre-load blocking is enabled |
 
-No `host_permissions` key is requested. The content scripts still run on matching web pages (`<all_urls>`), which can produce a broad site-access notice in Chrome. Blocking uses an overlay, so a page may begin loading before the overlay appears.
+Pre-load blocking and its host access are optional permissions requested from Settings. Without them, JustDetox uses its existing overlay, so a page may begin loading before the overlay appears. Content scripts still run on matching web pages (`<all_urls>`), which can produce a broad site-access notice in Chrome.
+
+Settings sync is off by default. When enabled, Chrome Sync stores settings only; usage history, reflection notes, the active Locked In session, and pre-load permission remain local. A change from another device that weakens protection waits for review in **Import / Export**.
 
 ---
 
@@ -165,6 +173,28 @@ Load the built extension in Chrome and verify each scenario before release.
 1. Open a page with an embedded video from a site you have not blocked.
 2. Block that video's domain in JustDetox Settings. The embedded player should turn into a blocked placeholder without reloading the page.
 3. Remove the block through the protection confirmation. The embedded player should return without reloading the page.
+
+### 9 — Rule Preview
+
+1. Set a block rule for `example.com` with a schedule starting later today.
+2. In **Rule Preview**, enter `example.com` and compare a time before the schedule with a time during it. The result and next change should match the rule.
+
+### 10 — Pre-load blocking
+
+1. In Settings, turn on **Block before sites load** and grant Chrome's optional permission.
+2. Open a hard-blocked site in a new tab. The destination should be replaced by the JustDetox block page before its content appears.
+3. Turn pre-load blocking off through the protection confirmation. New blocked tabs should use the normal overlay again.
+
+### 11 — Weekly review and presets
+
+1. Set a weekly focus goal on the Rules dashboard.
+2. Save a Locked In setup as a preset, then start it from the saved preset. Browse an allowed site and confirm focus time appears in the weekly review after a tracking tick.
+
+### 12 — Settings sync (requires two Chrome profiles/devices signed into the same Chrome Sync account)
+
+1. In **Import / Export**, start settings sync on the first device.
+2. On the second device, choose **Use synced settings**. Rules and presets should appear without copying usage history.
+3. Weaken a rule on one device. The other device should hold that change for review instead of applying it silently.
 
 ---
 

@@ -2,6 +2,7 @@
 
 export type Section =
   | "rules"
+  | "preview"
   | "locked-in"
   | "settings"
   | "groups"
@@ -13,6 +14,7 @@ export type Section =
 
 const NAV_ITEMS: { id: Section; label: string }[] = [
   { id: "rules",         label: "Rules" },
+  { id: "preview",       label: "Rule Preview" },
   { id: "locked-in",    label: "Locked In" },
   { id: "groups",        label: "Groups" },
   { id: "sites",         label: "Sites" },
@@ -62,7 +64,7 @@ export function Sidebar({ active, onSelect, extensionDisabled, lockedInActive }:
       </ul>
 
       <div className="sidebar-footer">
-        <span style={{ fontSize: "var(--text-xs)", color: "var(--text-3)" }}>v0.1.0</span>
+        <span style={{ fontSize: "var(--text-xs)", color: "var(--text-3)" }}>v{chrome.runtime.getManifest().version}</span>
       </div>
     </nav>
   );

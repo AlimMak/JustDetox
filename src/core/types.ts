@@ -138,6 +138,14 @@ export interface LockedInSession {
   sourceGroupId?: string;
 }
 
+/** A reusable one-click Locked In setup. */
+export interface FocusPreset {
+  id: string;
+  name: string;
+  durationMinutes: number;
+  allowedDomains: string[];
+}
+
 // ─── Allowlist Mode ───────────────────────────────────────────────────────────
 
 /**
@@ -217,6 +225,11 @@ export interface Settings {
   disabled: boolean;
   /** Pause tracking after five minutes without device input (screen lock always pauses). */
   pauseWhenIdle: boolean;
+  /** Redirect blocked navigations before the destination page loads. */
+  preloadBlocking: boolean;
+  /** Weekly goal for time spent in Locked In or Focus Environment. */
+  weeklyFocusGoalMinutes: number;
+  focusPresets: FocusPreset[];
   siteRules: SiteRule[];
   groups: SiteGroup[];
   /**
@@ -361,6 +374,8 @@ export interface SelfControlData {
 export interface DailyProgress {
   date: string;
   activeSeconds: number;
+  /** Time spent on an allowed site during an active focus mode. */
+  focusSeconds?: number;
   blockedAttempts: number;
   score: number | null;
 }
@@ -424,6 +439,9 @@ export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
   disabled: false,
   pauseWhenIdle: false,
+  preloadBlocking: false,
+  weeklyFocusGoalMinutes: 300,
+  focusPresets: [],
   siteRules: [],
   groups: [],
   globalBlockList: [],

@@ -13,6 +13,7 @@ import { onDelayCompleted } from "../core/dopamine";
 import { recordEvent } from "../core/selfControl";
 import { clearTrackedData } from "../core/history";
 import { resetTrackingBaseline } from "./tracker";
+import { getSyncStatus, syncAction } from "./settingsSync";
 import type {
   ExtensionMessage,
   CheckUrlResponse,
@@ -95,6 +96,20 @@ export function registerMessages(): void {
             console.error("[JustDetox] EXPORT_ALL handler failed:", err);
             sendResponse({ ok: false, error: "Could not export backup." });
           });
+        return true;
+      }
+
+      if (message.type === "GET_SYNC_STATUS" || message.type === "SYNC_ACTION") {
+        if (!isOptionsSender(sender)) {
+          sendResponse({ ok: false, error: "This action is only available in Settings." });
+          return false;
+        }
+        const action = message.type === "SYNC_ACTION"
+          ? syncAction(message.action, message.revision).then(() => ({ ok: true }))
+          : getSyncStatus().then((status) => ({ ok: true, ...status }));
+        action.then(sendResponse).catch((error: unknown) => {
+          sendResponse({ ok: false, error: error instanceof Error ? error.message : "Settings sync failed." });
+        });
         return true;
       }
 

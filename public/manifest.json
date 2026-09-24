@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JustDetox",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Block or time-limit websites to help you focus and detox from distractions.",
 
   "icons": {
@@ -42,11 +42,12 @@
     }
   ],
 
-  "permissions": ["storage", "tabs", "alarms", "idle"],
+  "permissions": ["storage", "tabs", "alarms", "idle", "declarativeNetRequestWithHostAccess"],
+  "optional_host_permissions": ["<all_urls>"],
 
   "web_accessible_resources": [
     {
-      "resources": ["blocked.html", "src/ui/onboarding/onboarding.html"],
+      "resources": ["blocked.html", "blocked.js", "src/ui/onboarding/onboarding.html"],
       "matches": ["<all_urls>"]
     }
   ]

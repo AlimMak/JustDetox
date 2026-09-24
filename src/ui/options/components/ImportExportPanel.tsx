@@ -8,10 +8,12 @@ import type { ValidatedFullExport } from "../../../core/validation";
 import { computeImportDiff } from "../../../core/protectedGate";
 import { useFriction } from "../context/FrictionContext";
 import { sendBackgroundCommand } from "../utils/backgroundCommand";
+import { SettingsSyncSection } from "./SettingsSyncSection";
 
 interface ImportExportPanelProps {
   settings: Settings;
-  patch: (update: Partial<Settings> | ((prev: Settings) => Settings)) => void;
+  reloadSettings: () => Promise<void>;
+  flushSettings: () => Promise<void>;
 }
 
 type ExportMode = "settings" | "full";
@@ -34,7 +36,7 @@ function importReductions(current: Settings, data: ValidatedFullExport): string[
   return reductions;
 }
 
-export function ImportExportPanel({ patch }: ImportExportPanelProps) {
+export function ImportExportPanel({ settings, reloadSettings, flushSettings }: ImportExportPanelProps) {
   const { askFriction } = useFriction();
   const fileRef = useRef<HTMLInputElement>(null);
   const [exportMode, setExportMode] = useState<ExportMode>("settings");
@@ -49,6 +51,7 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
     setExporting(true);
     setExportError(null);
     try {
+      await flushSettings();
       const date = new Date().toISOString().slice(0, 10);
       let json: string;
       let filename: string;
@@ -124,10 +127,10 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
 
     setApplying(true);
     try {
+      await flushSettings();
       const result = await sendBackgroundCommand({ type: "IMPORT_ALL", json: preview.json });
       if (result.ok) {
-        const fresh = await getSettings();
-        patch(() => fresh);
+        await reloadSettings();
         setPreview(null);
         setImportDone(true);
       } else {
@@ -155,6 +158,9 @@ export function ImportExportPanel({ patch }: ImportExportPanelProps) {
           </p>
         </div>
       </div>
+
+      {/* Export */}
+      <SettingsSyncSection settings={settings} reloadSettings={reloadSettings} flushSettings={flushSettings} />
 
       {/* Export */}
       <section className="panel-section">

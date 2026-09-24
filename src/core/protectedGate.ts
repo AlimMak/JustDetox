@@ -95,6 +95,10 @@ export function computeImportDiff(current: Settings, incoming: Settings): Protec
     reductions.push("Tracking will pause after five minutes without device input");
   }
 
+  if (current.preloadBlocking && !incoming.preloadBlocking) {
+    reductions.push("Pre-load blocking will be turned off");
+  }
+
   if (incoming.resetWindow.intervalHours < current.resetWindow.intervalHours) {
     reductions.push("Usage reset window shortened");
   }

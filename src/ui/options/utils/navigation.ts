@@ -1,7 +1,7 @@
 import type { Section } from "../components/Sidebar";
 
 const VALID_SECTIONS: Section[] = [
-  "rules", "locked-in", "settings", "groups", "sites", "packs",
+  "rules", "preview", "locked-in", "settings", "groups", "sites", "packs",
   "reset-window", "import-export", "about",
 ];
 

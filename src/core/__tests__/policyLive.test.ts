@@ -97,4 +97,16 @@ describe("live policy transitions", () => {
     expect(state.blocked).toBe(false);
     expect(state.nextCheckTs).toBe(now + 60_000);
   });
+
+  it("previews a future time without changing the system clock", () => {
+    const day = new Date(2026, 8, 24, 10);
+    const ruleSettings = settings({ siteRules: [{
+      domain: "example.com", enabled: true, mode: "block",
+      schedule: [{ enabled: true, days: [day.getDay()],
+        startMinutes: 11 * 60, endMinutes: 12 * 60 }],
+    }] });
+    expect(computeBlockedState("example.com", {}, ruleSettings, day.getTime()).blocked).toBe(false);
+    expect(computeBlockedState("example.com", {}, ruleSettings,
+      new Date(2026, 8, 24, 11, 30).getTime()).blocked).toBe(true);
+  });
 });

@@ -15,11 +15,12 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import type { Settings, LockedInSession, TemptationMap } from "../../../core/types";
+import type { Settings, LockedInSession, TemptationMap, FocusPreset } from "../../../core/types";
 import { getTemptations } from "../../../core/storage";
 import { DomainPillInput } from "./DomainPillInput";
 import { formatTime } from "../../popup/utils/formatTime";
 import { useFriction } from "../context/FrictionContext";
+import { generateId } from "../utils/id";
 
 interface LockedInPanelProps {
   settings: Settings;
@@ -202,10 +203,14 @@ const INITIAL_FLOW: StartFlowState = {
 interface StartFlowProps {
   settings: Settings;
   onStart: (session: LockedInSession) => void;
+  onSavePreset: (preset: FocusPreset) => void;
+  onDeletePreset: (id: string) => void;
 }
 
-function StartFlow({ settings, onStart }: StartFlowProps) {
+function StartFlow({ settings, onStart, onSavePreset, onDeletePreset }: StartFlowProps) {
   const [flow, setFlow] = useState<StartFlowState>(INITIAL_FLOW);
+  const [presetName, setPresetName] = useState("");
+  const [presetSaved, setPresetSaved] = useState(false);
   const customRef = useRef<HTMLInputElement>(null);
 
   const set = <K extends keyof StartFlowState>(key: K, val: StartFlowState[K]) =>
@@ -249,6 +254,22 @@ function StartFlow({ settings, onStart }: StartFlowProps) {
     onStart(session);
   };
 
+  const startPreset = (preset: FocusPreset) => {
+    if (settings.allowlistMode.enabled) return;
+    const now = Date.now();
+    onStart({ active: true, startTs: now, endTs: now + preset.durationMinutes * 60_000,
+      allowedDomains: [...preset.allowedDomains] });
+  };
+
+  const savePreset = () => {
+    const name = presetName.trim();
+    if (!name || !durationValid || !domainsValid || settings.focusPresets.length >= 20) return;
+    onSavePreset({ id: generateId(), name, durationMinutes: resolvedMinutes,
+      allowedDomains: [...resolvedDomains] });
+    setPresetName("");
+    setPresetSaved(true);
+  };
+
   const groupsWithDomains = settings.groups.filter((g) => g.domains.length > 0);
 
   return (
@@ -269,6 +290,28 @@ function StartFlow({ settings, onStart }: StartFlowProps) {
             Focus Environment takes priority over Locked In. Turn it off in Settings before starting a session.
           </p>
         </div>
+      )}
+
+      {settings.focusPresets.length > 0 && (
+        <section className="panel-section">
+          <p className="section-heading">Saved focus presets</p>
+          <div className="rule-card-list">
+            {settings.focusPresets.map((preset) => (
+              <div className="list-row" key={preset.id}>
+                <div className="list-row__main">
+                  <span className="list-row__title">{preset.name}</span>
+                  <span className="list-row__sub">{preset.durationMinutes} min · {preset.allowedDomains.join(", ")}</span>
+                </div>
+                <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+                  <button className="btn btn-primary btn--sm" disabled={settings.allowlistMode.enabled}
+                    onClick={() => startPreset(preset)}>Start</button>
+                  <button className="btn btn-ghost btn--sm" aria-label={`Delete ${preset.name} preset`}
+                    onClick={() => onDeletePreset(preset.id)}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Step progress */}
@@ -486,6 +529,18 @@ function StartFlow({ settings, onStart }: StartFlowProps) {
             All other domains will show a block overlay until the session ends.
           </p>
 
+          <div className="field" style={{ marginBottom: "var(--sp-4)", maxWidth: 320 }}>
+            <label className="field__label" htmlFor="focus-preset-name">Save this setup for later</label>
+            <input id="focus-preset-name" className="input" maxLength={60}
+              placeholder="Work, Study, Evening…" value={presetName}
+              onChange={(event) => { setPresetName(event.target.value); setPresetSaved(false); }} />
+            <button className="btn btn-secondary btn--sm" style={{ marginTop: "var(--sp-2)" }}
+              disabled={!presetName.trim() || settings.focusPresets.length >= 20}
+              onClick={savePreset}>Save preset</button>
+            {presetSaved && <p className="field__hint" role="status">Preset saved.</p>}
+            {settings.focusPresets.length >= 20 && <p className="field__hint">You can save up to 20 presets.</p>}
+          </div>
+
           <div style={{ display: "flex", gap: "var(--sp-2)" }}>
             <button className="btn btn-secondary" onClick={() => set("step", 2)}>
               ← Back
@@ -532,5 +587,7 @@ export function LockedInPanel({ settings, patch }: LockedInPanelProps) {
     );
   }
 
-  return <StartFlow settings={settings} onStart={handleStart} />;
+  return <StartFlow settings={settings} onStart={handleStart}
+    onSavePreset={(preset) => patch({ focusPresets: [...settings.focusPresets, preset] })}
+    onDeletePreset={(id) => patch({ focusPresets: settings.focusPresets.filter((preset) => preset.id !== id) })} />;
 }

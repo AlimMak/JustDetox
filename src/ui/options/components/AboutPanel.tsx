@@ -14,7 +14,7 @@ export function AboutPanel() {
         <div className="card">
           <div className="about-row">
             <span className="about-label">Version</span>
-            <span className="about-value">0.1.0</span>
+            <span className="about-value">{chrome.runtime.getManifest().version}</span>
           </div>
           <div className="about-row">
             <span className="about-label">License</span>
@@ -37,7 +37,7 @@ export function AboutPanel() {
       </section>
 
       <p style={{ fontSize: "var(--text-sm)", color: "var(--text-3)", lineHeight: 1.6 }}>
-        No accounts, no telemetry. All data stays in your browser.
+        No JustDetox account or telemetry. Usage stays on this device; settings sync only when you turn it on.
       </p>
     </div>
   );

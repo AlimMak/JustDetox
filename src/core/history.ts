@@ -44,6 +44,8 @@ export async function getProgressHistory(): Promise<DailyProgress[]> {
       typeof entry === "object" && entry !== null &&
       typeof entry.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(entry.date) &&
       typeof entry.activeSeconds === "number" && Number.isFinite(entry.activeSeconds) && entry.activeSeconds >= 0 &&
+      (entry.focusSeconds === undefined ||
+        (typeof entry.focusSeconds === "number" && Number.isFinite(entry.focusSeconds) && entry.focusSeconds >= 0)) &&
       typeof entry.blockedAttempts === "number" && Number.isInteger(entry.blockedAttempts) && entry.blockedAttempts >= 0 &&
       (entry.score === null || (typeof entry.score === "number" && Number.isFinite(entry.score) && entry.score >= 0 && entry.score <= 100)),
     )
@@ -87,9 +89,13 @@ function updateToday(update: (entry: DailyProgress) => DailyProgress): Promise<v
   return nextWrite;
 }
 
-export function recordDailyUsage(seconds: number): Promise<void> {
+export function recordDailyUsage(seconds: number, focusSeconds = 0): Promise<void> {
   if (!Number.isFinite(seconds) || seconds <= 0) return Promise.resolve();
-  return updateToday((entry) => ({ ...entry, activeSeconds: entry.activeSeconds + seconds }));
+  return updateToday((entry) => ({
+    ...entry,
+    activeSeconds: entry.activeSeconds + seconds,
+    focusSeconds: (entry.focusSeconds ?? 0) + Math.max(0, Math.min(seconds, focusSeconds)),
+  }));
 }
 
 export function recordDailyAttempt(): Promise<void> {

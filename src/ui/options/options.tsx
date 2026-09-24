@@ -20,12 +20,13 @@ import { ImportExportPanel } from "./components/ImportExportPanel";
 import { AboutPanel } from "./components/AboutPanel";
 import { LockedInPanel } from "./components/LockedInPanel";
 import { CategoryPacksPanel } from "./components/CategoryPacksPanel";
+import { RulePreviewPanel } from "./components/RulePreviewPanel";
 
 export function Options() {
   // Initialise from location.hash so popup deep-links work (#rules, #settings, …)
   const [section, setSection] = useState<Section>(resolveInitialSection);
   const [focusSite, setFocusSite] = useState<{ hostname: string; request: number } | null>(null);
-  const { settings, loading, patch } = useSettings();
+  const { settings, loading, patch, reload, flush } = useSettings();
   const { askFriction, gateState, gateHandlers } = useFrictionGate(
     settings.friction,
     settings.protectedGate,
@@ -58,6 +59,7 @@ export function Options() {
           {section === "rules" && (
             <DashboardPanel settings={settings} patch={patch} lockedInActive={lockedInActive} onOpenSite={openSite} />
           )}
+          {section === "preview" && <RulePreviewPanel settings={settings} />}
           {section === "locked-in" && (
             <LockedInPanel settings={settings} patch={patch} />
           )}
@@ -77,7 +79,7 @@ export function Options() {
             <CategoryPacksPanel settings={settings} patch={patch} />
           )}
           {section === "import-export" && (
-            <ImportExportPanel settings={settings} patch={patch} />
+            <ImportExportPanel settings={settings} reloadSettings={reload} flushSettings={flush} />
           )}
           {section === "about" && <AboutPanel />}
         </main>

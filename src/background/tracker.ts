@@ -32,6 +32,7 @@ import type { DomainUsage, UsageMap } from "../core/types";
 import { checkLockedInExpiry } from "./lockedIn";
 import { triggerRecalculation } from "../core/dopamine";
 import { recordDailyUsage } from "../core/history";
+import { computeBlockedState } from "../core/policy";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -176,7 +177,13 @@ async function accumulateTime(domain: string, elapsedSeconds: number): Promise<v
   };
 
   await setUsage(updated);
-  await recordDailyUsage(elapsedSeconds);
+  const focusModeActive = settings.allowlistMode.enabled || Boolean(
+    settings.lockedInSession?.active && now < settings.lockedInSession.endTs,
+  );
+  const focusSeconds = focusModeActive && !computeBlockedState(domain, usage, settings).blocked
+    ? elapsedSeconds
+    : 0;
+  await recordDailyUsage(elapsedSeconds, focusSeconds);
   triggerRecalculation();
 }
 

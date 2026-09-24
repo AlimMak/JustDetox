@@ -9,6 +9,7 @@ import type { Settings } from "../../../core/types";
 import { formatTime } from "../../popup/utils/formatTime";
 import { useFriction } from "../context/FrictionContext";
 import { ProgressHistorySection } from "./ProgressHistorySection";
+import { WeeklyReviewSection } from "./WeeklyReviewSection";
 import { sendBackgroundCommand } from "../utils/backgroundCommand";
 
 interface DashboardPanelProps {
@@ -187,6 +188,8 @@ export function DashboardPanel({ settings, patch, lockedInActive, onOpenSite }: 
 
       {/* Self-Control Graph */}
       {!loading && <SelfControlSection key={dataRevision} />}
+
+      {!loading && <WeeklyReviewSection history={history} settings={settings} patch={patch} />}
 
       {!loading && (
         <ProgressHistorySection

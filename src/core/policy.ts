@@ -236,8 +236,9 @@ export function computeBlockedState(
   hostname: string,
   usage: UsageMap,
   settings: Settings,
+  at: number = Date.now(),
 ): BlockedState {
-  const now = Date.now();
+  const now = at;
   // ── Allowlist Mode: evaluated first — overrides Locked In and all other rules ──
   if (settings.allowlistMode?.enabled) {
     const host = normalizeHostname(hostname);

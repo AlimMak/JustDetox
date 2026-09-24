@@ -6,20 +6,18 @@ Only the latest release on the `main` branch receives security fixes.
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x (current) | ✓ |
+| 0.3.x (current) | ✓ |
 
 ---
 
 ## Data storage
 
-JustDetox stores data **exclusively in `chrome.storage.local`**, which is:
+By default, JustDetox stores data in `chrome.storage.local`, which is:
 
 - Sandboxed to this extension's origin
-- Never synced to any remote server
-- Never transmitted outside the browser
 - Readable only by this extension and the browser itself
 
-No passwords, no credentials, no personally identifiable information are collected or stored. Usage data (time-on-site counters) and your rule configuration never leave your device.
+Usage data, daily history, reflections, and active focus sessions remain local. If you explicitly turn on settings sync, Chrome Sync stores your rules, goals, and focus presets under the browser account; JustDetox has no separate server or telemetry. Exported backup files are handled by your browser and saved where you choose.
 
 ---
 
@@ -31,8 +29,9 @@ No passwords, no credentials, no personally identifiable information are collect
 | `tabs` | Read the active tab's URL to apply rules; open the options/onboarding page on install |
 | `alarms` | Trigger the one-minute usage flush and focus-session expiry checks |
 | `idle` | Detect screen lock and optional five-minute device inactivity |
+| `declarativeNetRequestWithHostAccess` and optional `<all_urls>` host access | Apply pre-load redirects to blocked page and iframe navigations |
 
-The extension has no `host_permissions` entry. Its manifest declares content scripts for `<all_urls>`, so Chrome may still display a broad site-access notice. Those scripts inspect page URLs and insert blocking overlays or iframe placeholders; the background service worker does not inspect page content.
+Host access is optional and requested only when pre-load blocking is enabled. Content scripts still match `<all_urls>`, so Chrome may display a broad site-access notice. The scripts inspect page URLs and insert blocking overlays or iframe placeholders; the background service worker does not inspect page content.
 
 ---
 

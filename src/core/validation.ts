@@ -146,6 +146,13 @@ export const lockedInSessionSchema = z
   })
   .optional();
 
+export const focusPresetSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(60),
+  durationMinutes: z.number().int().min(1).max(1440),
+  allowedDomains: z.array(domainSchema).min(1).max(100),
+});
+
 export const frictionSettingsSchema = z.object({
   enabled: z.boolean().default(true),
   requireReflection: z.boolean().default(false),
@@ -171,6 +178,9 @@ export const settingsSchema = z.object({
   version: z.number().int().min(1).default(SETTINGS_VERSION),
   disabled: z.boolean().default(false),
   pauseWhenIdle: z.boolean().default(false),
+  preloadBlocking: z.boolean().default(false),
+  weeklyFocusGoalMinutes: z.number().int().min(0).max(10080).default(300),
+  focusPresets: z.array(focusPresetSchema).max(20).default([]),
   siteRules: z.array(siteRuleSchema).default([]),
   groups: z.array(siteGroupSchema).default([]),
   globalBlockList: z.array(domainSchema).default([]),
@@ -266,6 +276,7 @@ export const fullExportSchema = z.object({
   progressHistory: z.array(z.object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     activeSeconds: z.number().finite().min(0),
+    focusSeconds: z.number().finite().min(0).optional(),
     blockedAttempts: z.number().int().min(0),
     score: z.number().finite().min(0).max(100).nullable(),
   })).max(30).optional(),

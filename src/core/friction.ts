@@ -38,7 +38,8 @@ export type FrictionActionType =
   | "clear-tracked-data"
   | "shorten-reset-window"
   | "weaken-friction-layer"
-  | "pause-tracking-when-idle";
+  | "pause-tracking-when-idle"
+  | "disable-preload-blocking";
 
 // ─── Payload ──────────────────────────────────────────────────────────────────
 
@@ -156,5 +157,6 @@ export function describeActionType(actionType: FrictionActionType): string {
     case "shorten-reset-window": return "Shorten the usage reset window";
     case "weaken-friction-layer": return "Weaken the Friction Layer";
     case "pause-tracking-when-idle": return "Pause tracking while the device is idle";
+    case "disable-preload-blocking": return "Turn off pre-load blocking";
   }
 }

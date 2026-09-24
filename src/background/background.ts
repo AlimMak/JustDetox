@@ -8,9 +8,13 @@
 
 import { initTracker, recoverState } from "./tracker";
 import { registerMessages } from "./messages";
+import { initPreloadBlocking } from "./preloadBlocking";
+import { initSettingsSync } from "./settingsSync";
 
 initTracker();
 registerMessages();
+initPreloadBlocking();
+initSettingsSync();
 
 // ─── Lifecycle hooks ──────────────────────────────────────────────────────────
 

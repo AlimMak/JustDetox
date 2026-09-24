@@ -1,6 +1,6 @@
 // FILE: src/ui/options/components/SettingsPanel.tsx
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Settings } from "../../../core/types";
 import { DEFAULT_FRICTION_SETTINGS, DEFAULT_PROTECTED_GATE } from "../../../core/types";
 import { DomainPillInput } from "./DomainPillInput";
@@ -17,6 +17,8 @@ interface SettingsPanelProps {
 export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
   const [customHours, setCustomHours] = useState<string>("");
   const [allowlistError, setAllowlistError] = useState<string | null>(null);
+  const [preloadError, setPreloadError] = useState<string | null>(null);
+  const [preloadPermission, setPreloadPermission] = useState<boolean | null>(null);
   const [phraseInput, setPhraseInput] = useState(
     settings.protectedGate?.phrase ?? DEFAULT_PROTECTED_GATE.phrase,
   );
@@ -24,6 +26,11 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
 
   const pg = settings.protectedGate ?? DEFAULT_PROTECTED_GATE;
   const lockedInActive = Boolean(settings.lockedInSession?.active && Date.now() < settings.lockedInSession.endTs);
+
+  useEffect(() => {
+    void chrome.permissions.contains({ origins: ["<all_urls>"] })
+      .then(setPreloadPermission).catch(() => setPreloadPermission(false));
+  }, []);
 
   const patchPg = async (partial: Partial<typeof pg>): Promise<boolean> => {
     const next = { ...pg, ...partial };
@@ -122,6 +129,30 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
       if (!ok) return;
     }
     patch({ pauseWhenIdle });
+  };
+  const patchPreloadBlocking = async (enabled: boolean) => {
+    setPreloadError(null);
+    if (!enabled && settings.preloadBlocking) {
+      const ok = await askFriction({
+        actionType: "disable-preload-blocking",
+        label: "Turn off pre-load blocking",
+      });
+      if (!ok) return;
+    }
+    if (enabled) {
+      try {
+        const granted = await chrome.permissions.request({ origins: ["<all_urls>"] });
+        if (!granted) {
+          setPreloadError("Chrome permission was not granted. Pre-load blocking remains off.");
+          return;
+        }
+        setPreloadPermission(true);
+      } catch {
+        setPreloadError("Could not request Chrome permission. Pre-load blocking remains off.");
+        return;
+      }
+    }
+    patch({ preloadBlocking: enabled });
   };
   const { intervalHours } = settings.resetWindow;
   const isCustom = !RESET_PRESETS.includes(intervalHours as (typeof RESET_PRESETS)[number]);
@@ -232,6 +263,33 @@ export function SettingsPanel({ settings, patch }: SettingsPanelProps) {
         <p className="reset-window-hint">
           Usage counters reset every {intervalHours}h. Shortening this window may reset current limits sooner.
         </p>
+      </section>
+
+      {/* Pre-load blocking */}
+      <section className="panel-section">
+        <p className="section-heading">Pre-load blocking</p>
+        <div className="field" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <span className="field__label" style={{ marginBottom: 0 }}>Block before sites load</span>
+            <p className="field__hint" style={{ marginTop: "var(--sp-1)" }}>
+              Optional stronger blocking for page and embedded navigations. Chrome will ask for permission to redirect websites to a JustDetox block page. Rule changes and time limits update as tracking runs.
+            </p>
+          </div>
+          <label className="toggle">
+            <input className="toggle__input" type="checkbox" checked={settings.preloadBlocking}
+              onChange={(event) => void patchPreloadBlocking(event.target.checked)} />
+            <span className="toggle__track"><span className="toggle__thumb" /></span>
+          </label>
+        </div>
+        {preloadError && <p className="field__error" role="alert">{preloadError}</p>}
+        {settings.preloadBlocking && preloadPermission === false && (
+          <div>
+            <p className="field__error">Chrome permission is missing, so pre-load blocking is paused on this device.</p>
+            <button className="btn btn-secondary btn--sm" onClick={() => void patchPreloadBlocking(true)}>
+              Grant permission
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Idle tracking */}

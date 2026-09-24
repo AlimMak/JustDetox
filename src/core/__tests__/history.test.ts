@@ -28,7 +28,7 @@ describe("daily progress history", () => {
   it("serializes time, attempt and score updates for the same day", async () => {
     await Promise.all([
       recordDailyUsage(15),
-      recordDailyUsage(25),
+      recordDailyUsage(25, 20),
       recordDailyAttempt(),
       recordDailyScore(86),
     ]);
@@ -36,6 +36,7 @@ describe("daily progress history", () => {
     expect(await getProgressHistory()).toEqual([{
       date: "2026-09-22",
       activeSeconds: 40,
+      focusSeconds: 20,
       blockedAttempts: 1,
       score: 86,
     }]);
