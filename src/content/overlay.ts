@@ -60,39 +60,16 @@ const BASE_OVERLAY_STYLE: Partial<CSSStyleDeclaration> = {
 
 // ─── Block overlay DOM ────────────────────────────────────────────────────────
 
-/**
- * Inject the block overlay with the given block message and optional subtitle.
- * Idempotent — calling a second time before unmounting is a no-op.
- */
-function mountOverlay(
-  hostname: string,
-  message: string,
-  subtitle?: string,
-  source?: string,
-  nextChangeLabel?: string,
-  nextCheckTs?: number,
-): void {
+/** Inject the minimal block overlay. */
+function mountOverlay(): void {
   const existing = document.getElementById(OVERLAY_ID);
   const overlay = document.createElement("div");
   overlay.id = OVERLAY_ID;
-  overlay.setAttribute("role", "alertdialog");
-  overlay.setAttribute("aria-label", `JustDetox blocked ${hostname}`);
+  overlay.setAttribute("role", "alert");
   Object.assign(overlay.style, BASE_OVERLAY_STYLE);
 
-  const site = document.createElement("p");
-  site.textContent = hostname;
-  Object.assign(site.style, {
-    margin: "0 0 20px",
-    fontSize: "0.8rem",
-    color: "#9ca3af",
-    letterSpacing: "0.06em",
-    overflowWrap: "anywhere",
-    maxWidth: "min(90vw, 480px)",
-  });
-  overlay.appendChild(site);
-
   const msg = document.createElement("p");
-  msg.textContent = message;
+  msg.textContent = "not right now, lock back in";
   Object.assign(msg.style, {
     margin: "0",
     fontSize: "1.2rem",
@@ -105,49 +82,6 @@ function mountOverlay(
   });
 
   overlay.appendChild(msg);
-
-  if (subtitle) {
-    const sub = document.createElement("p");
-    sub.textContent = subtitle;
-    Object.assign(sub.style, {
-      margin: "12px 0 0",
-      fontSize: "0.75rem",
-      fontWeight: "400",
-      color: "#6b7280",
-      letterSpacing: "0.04em",
-      textAlign: "center",
-    });
-    overlay.appendChild(sub);
-  }
-
-  if (source) {
-    const reason = document.createElement("p");
-    reason.textContent = `Why: ${source}`;
-    Object.assign(reason.style, {
-      margin: "24px 0 0",
-      fontSize: "0.85rem",
-      color: "#c4cbd4",
-      textAlign: "center",
-      padding: "0 24px",
-    });
-    overlay.appendChild(reason);
-  }
-
-  const next = document.createElement("p");
-  const validTime = nextCheckTs !== undefined && Number.isFinite(nextCheckTs) && nextCheckTs > Date.now();
-  next.textContent = validTime && nextChangeLabel
-    ? `${nextChangeLabel}: ${new Date(nextCheckTs).toLocaleString(undefined, {
-        weekday: "short", hour: "numeric", minute: "2-digit",
-      })}`
-    : "No scheduled end. Change this rule in JustDetox settings.";
-  Object.assign(next.style, {
-    margin: "10px 0 0",
-    fontSize: "0.75rem",
-    color: "#9ca3af",
-    textAlign: "center",
-    padding: "0 24px",
-  });
-  overlay.appendChild(next);
 
   attachInteractionBlock(overlay);
   if (existing) existing.replaceWith(overlay);
@@ -353,18 +287,11 @@ async function performCheck(context: CheckUrlContext): Promise<void> {
   }
 
   // ── Block overlay ───────────────────────────────────────────────────────────
-  if (response.blocked && response.message) {
+  if (response.blocked) {
     isDelayOverlayVisible = false;
     isOverlayVisible = true;
     unmountDelayOverlay();
-    mountOverlay(
-      hostname,
-      response.message,
-      response.subtitle,
-      response.source,
-      response.nextChangeLabel,
-      response.nextCheckTs,
-    );
+    mountOverlay();
     return;
   }
 

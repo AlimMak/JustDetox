@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JustDetox",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Block or time-limit websites to help you focus and detox from distractions.",
 
   "icons": {
